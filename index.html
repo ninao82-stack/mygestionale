@@ -533,25 +533,30 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // --- FUNZIONE DI CARICAMENTO CLOUD ---
 async function loadDataFromSupabase() {
     try {
-        const { data: contactsData, error: contactsError } = await supabaseClient.from('contacts').select('*');
+        // Carica contatti dalla tabella corretta di Supabase
+        const { data: contactsData, error: contactsError } = await supabaseClient.from('contatti').select('*');
         if (!contactsError && contactsData && contactsData.length > 0) {
             contactsDb = contactsData;
+            if (typeof contacts !== 'undefined') contacts = contactsData;
             localStorage.setItem(contactStorageKey, JSON.stringify(contactsDb));
         }
 
+        // Carica diplomi
         const { data: diplomiData, error: diplomiError } = await supabaseClient.from('diplomi').select('*');
         if (!diplomiError && diplomiData && diplomiData.length > 0) {
             db = diplomiData;
             localStorage.setItem('gestionale_db', JSON.stringify(db));
         }
 
-        renderContacts();
-        renderCalendar();
-        renderTable();
-        updateStatistics();
-        updateHomeCounters();
+        // Aggiorna l'interfaccia grafica
+        if (typeof loadContacts === 'function') loadContacts();
+        if (typeof renderContacts === 'function') renderContacts();
+        if (typeof renderCalendar === 'function') renderCalendar();
+        if (typeof renderTable === 'function') renderTable();
+        if (typeof updateStatistics === 'function') updateStatistics();
+        if (typeof updateHomeCounters === 'function') updateHomeCounters();
     } catch (err) {
-        console.warn('Errore Supabase, uso dati locali:', err);
+        console.warn('Errore Supabase:', err);
     }
 }
 
@@ -1672,7 +1677,6 @@ window.onload = function() {
 
     // Poi scarica e sincronizza da Supabase
     loadDataFromSupabase();
-
     resetContactForm();
     renderContacts();
     renderCalendar();
