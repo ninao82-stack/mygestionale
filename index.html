@@ -523,6 +523,22 @@
     </section>
 </div>
 
+	<div id="cloudStatusBadge" style="
+    position:fixed;
+    bottom:18px;
+    right:18px;
+    z-index:99999;
+    padding:11px 17px;
+    border-radius:30px;
+    background:#fef3c7;
+    color:#92400e;
+    font-size:13px;
+    font-weight:700;
+    box-shadow:0 3px 12px rgba(0,0,0,0.18);
+">
+    🟡 VERIFICA DATABASE...
+</div>
+
 <script>
 let db = [];
 let contactsDb = [];
@@ -536,38 +552,59 @@ const SUPABASE_URL = 'https://kqjwviodibacjpxcrpoz.supabase.co'; // Inserisci la
 const SUPABASE_ANON_KEY = 'sb_publishable_j5Bv_5uaCZtMSPh2lVvD9g_9oxnaYRi';        // Inserisci la tua chiave anonima
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+function updateCloudStatus(status, message) {
+
+    const badge = document.getElementById('cloudStatusBadge');
+
+    if (!badge) return;
+
+    const styles = {
+        checking: {
+            background: '#fef3c7',
+            color: '#92400e',
+            text: '🟡 VERIFICA IN CORSO'
+        },
+        connected: {
+            background: '#dcfce7',
+            color: '#166534',
+            text: '🟢 DATABASE CONNESSO'
+        },
+        error: {
+            background: '#fee2e2',
+            color: '#991b1b',
+            text: '🔴 DATABASE NON RAGGIUNGIBILE'
+        }
+    };
+
+    const current = styles[status];
+
+    badge.style.background = current.background;
+    badge.style.color = current.color;
+    badge.innerHTML = current.text;
+
+    badge.title = message || '';
+}
+
 // --- FUNZIONE DI CARICAMENTO CLOUD ---
 async function loadDataFromSupabase() {
-    const statusBadge = document.getElementById('dbStatusBadge');
 
-    cloudReady = false;
+    updateCloudStatus('checking');
 
     try {
-        const [
-            { data: contactsData, error: contactsError },
-            { data: diplomiData, error: diplomiError }
-        ] = await Promise.all([
-            supabaseClient.from('contatti').select('*'),
-            supabaseClient.from('diplomi').select('*')
-        ]);
+
+        const { data: contactsData, error: contactsError } =
+            await supabaseClient.from('contatti').select('*');
 
         if (contactsError) throw contactsError;
+
+        const { data: diplomiData, error: diplomiError } =
+            await supabaseClient.from('diplomi').select('*');
+
         if (diplomiError) throw diplomiError;
 
-        // Caricamento contatti
-        contactsDb = (contactsData || []).map(c => ({
-            ...c,
-            communications: Array.isArray(c.communications)
-                ? c.communications
-                : []
-        }));
+        contactsDb = contactsData || [];
+        db = diplomiData || [];
 
-        // Caricamento diplomi
-        db = (diplomiData || []).map(item => ({
-            ...item
-        }));
-
-        // Copia locale di sicurezza
         localStorage.setItem(
             contactStorageKey,
             JSON.stringify(contactsDb)
@@ -578,15 +615,10 @@ async function loadDataFromSupabase() {
             JSON.stringify(db)
         );
 
-        // Il cloud è pronto soltanto se entrambe le tabelle
-        // sono state caricate senza errori.
-        cloudReady = true;
-
-        if (statusBadge) {
-            statusBadge.style.background = '#dcfce7';
-            statusBadge.style.color = '#166534';
-            statusBadge.innerHTML = '🟢 Supabase Connesso';
-        }
+        updateCloudStatus(
+            'connected',
+            'Entrambe le tabelle sono state lette correttamente da Supabase.'
+        );
 
         renderContacts();
         renderCalendar();
@@ -594,22 +626,17 @@ async function loadDataFromSupabase() {
         updateStatistics();
         updateHomeCounters();
 
-        console.log('Dati caricati correttamente da Supabase.');
-
     } catch (err) {
-        console.error('Errore caricamento Supabase:', err);
 
-        cloudReady = false;
+        console.error('Errore Supabase:', err);
 
-        if (statusBadge) {
-            statusBadge.style.background = '#fee2e2';
-            statusBadge.style.color = '#991b1b';
-            statusBadge.innerHTML = '🔴 Errore Connessione';
-        }
+        updateCloudStatus(
+            'error',
+            err.message || 'Errore di connessione o autorizzazione.'
+        );
 
         alert(
-            'Attenzione: non è stato possibile caricare tutti i dati da Supabase. ' +
-            'Il salvataggio delle modifiche è temporaneamente bloccato per evitare problemi.'
+            'Attenzione: impossibile leggere correttamente i dati da Supabase. Controlla la connessione e la console.'
         );
     }
 }
