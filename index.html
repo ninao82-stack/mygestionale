@@ -603,7 +603,21 @@ async function loadDataFromSupabase() {
         if (diplomiError) throw diplomiError;
 
         contactsDb = contactsData || [];
-        db = diplomiData || [];
+	db = diplomiData || [];
+
+// Normalizza i dati dei contatti senza eliminare i campi originali
+contactsDb = contactsDb.map(contact => ({
+    ...contact,
+    name: contact.name || contact.full_name || contact.fullName ||
+          `${contact.first_name || contact.firstName || contact.nome || ''} ${contact.last_name || contact.lastName || contact.cognome || ''}`.trim(),
+    phone: contact.phone || '',
+    communications: Array.isArray(contact.communications)
+        ? contact.communications
+        : []
+}));
+
+// Il database è pronto solo dopo aver letto entrambe le tabelle
+cloudReady = true;
 
         localStorage.setItem(
             contactStorageKey,
@@ -1472,66 +1486,65 @@ function loadContacts() {
 
 async function persistContacts() {
 
-    if (!cloudReady) {
-        alert('Supabase non è pronto. Attendi il caricamento dei dati prima di effettuare modifiche.');
-        return;
-    }
-
+    // 1. Salvataggio locale immediato
     try {
 
-        // Salva o aggiorna tutti i contatti
-        if (contactsDb.length > 0) {
-
-            const { error: saveError } = await supabaseClient
-                .from('contatti')
-                .upsert(contactsDb, { onConflict: 'id' });
-
-            if (saveError) throw saveError;
-        }
-
-        // Elimina dal cloud i contatti rimossi dal gestionale
-        let deleteQuery = supabaseClient
-            .from('contatti')
-            .delete();
-
-        if (contactsDb.length > 0) {
-
-            const ids = contactsDb.map(c => c.id).join(',');
-
-            deleteQuery = deleteQuery.not(
-                'id',
-                'in',
-                `(${ids})`
-            );
-
-        } else {
-            deleteQuery = deleteQuery.not('id', 'is', null);
-        }
-
-        const { error: deleteError } = await deleteQuery;
-
-        if (deleteError) throw deleteError;
-
-        // Copia locale di sicurezza
         localStorage.setItem(
             contactStorageKey,
             JSON.stringify(contactsDb)
         );
 
-        renderContacts();
-        renderCalendar();
-        updateHomeCounters();
+    } catch (error) {
 
-        console.log('Contatti salvati correttamente su Supabase.');
+        console.error('Errore salvataggio locale:', error);
+
+        alert('Impossibile salvare i contatti nel browser.');
+
+        return false;
+    }
+
+    // 2. Aggiornamento immediato dell'interfaccia
+    renderContacts();
+    renderCalendar();
+    updateHomeCounters();
+
+    // 3. Se Supabase non è disponibile, mantieni i dati locali
+    if (!cloudReady) {
+
+        console.warn(
+            'Contatti salvati localmente. Supabase non è ancora disponibile.'
+        );
+
+        return false;
+    }
+
+    // 4. Sincronizzazione cloud
+    try {
+
+        if (contactsDb.length > 0) {
+
+            const { error } = await supabaseClient
+                .from('contatti')
+                .upsert(contactsDb, { onConflict: 'id' });
+
+            if (error) throw error;
+        }
+
+        console.log('Contatti sincronizzati correttamente.');
+
+        return true;
 
     } catch (error) {
 
-        console.error('Errore salvataggio contatti:', error);
+        console.error('Errore sincronizzazione contatti:', error);
 
         alert(
-            'Errore durante il salvataggio dei contatti su Supabase. ' +
-            'Le modifiche non sono state confermate sul cloud. Controlla la console.'
+            'I contatti sono stati salvati localmente, ' +
+            'ma non è stato possibile sincronizzarli con Supabase. ' +
+            'Non aggiornare o cancellare i dati manualmente.'
         );
+
+        return false;
     }
 }
 
@@ -1607,7 +1620,7 @@ function editContact(id) {
     if (!contact) return;
     
     // Separa nome e cognome dal campo intero 'name' salvato nel database
-    const nameParts = (contact.name || '').trim().split(' ');
+    const nameParts = getContactName(contact).trim().split(/\s+/);
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '';
 
@@ -1696,6 +1709,80 @@ function getGoogleCalendarUrl(contact) {
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${dates}&details=${details}`;
 }
 
+// Recupera correttamente nome e cognome da diversi formati
+function getContactName(contact) {
+
+    if (!contact) return 'Contatto Senza Nome';
+
+    const firstName =
+        contact.first_name ||
+        contact.firstName ||
+        contact.firstname ||
+        contact.nome ||
+        contact.Nome ||
+        '';
+
+    const lastName =
+        contact.last_name ||
+        contact.lastName ||
+        contact.lastname ||
+        contact.cognome ||
+        contact.Cognome ||
+        '';
+
+    const fullName =
+        contact.name ||
+        contact.full_name ||
+        contact.fullName ||
+        contact.nome_completo ||
+        contact.nomeCompleto ||
+        '';
+
+    // Se esiste già un nominativo completo, utilizza quello
+    if (String(fullName).trim()) {
+        return String(fullName).trim();
+    }
+
+    // Altrimenti combina nome e cognome
+    const combined = `${firstName} ${lastName}`.trim();
+
+    return combined || 'Contatto Senza Nome';
+}
+
+function getContactName(contact) {
+    if (!contact) return 'Contatto Senza Nome';
+
+    const firstName =
+        contact.first_name ||
+        contact.firstName ||
+        contact.firstname ||
+        contact.nome ||
+        contact.Nome ||
+        '';
+
+    const lastName =
+        contact.last_name ||
+        contact.lastName ||
+        contact.lastname ||
+        contact.cognome ||
+        contact.Cognome ||
+        '';
+
+    const fullName =
+        contact.name ||
+        contact.full_name ||
+        contact.fullName ||
+        contact.nome_completo ||
+        contact.nomeCompleto ||
+        '';
+
+    if (String(firstName).trim() || String(lastName).trim()) {
+        return `${firstName} ${lastName}`.trim();
+    }
+
+    return String(fullName).trim() || 'Contatto Senza Nome';
+}
+
 function renderContacts() {
     const list = document.getElementById('contactsList');
     if (!list) return;
@@ -1705,7 +1792,13 @@ function renderContacts() {
     const sortBy = document.getElementById('contactSortSelect')?.value || 'appointment';
 
     let filtered = contactsDb.filter(contact => {
-        const text = [contact.name, contact.phone, contact.region, contact.status, ...(contact.communications || []).map(c => c.text)].join(' ').toLowerCase();
+        const text = [getContactName(contact), contact.phone, contact.region, contact.status, ...(contact.communications || []).map(c => c.text)].join(' ').toLowerCase();
+    getContactName(contact),
+    contact.phone,
+    contact.region,
+    contact.status,
+    ...(contact.communications || []).map(c => c.text)
+].join(' ').toLowerCase();
         return (!search || text.includes(search)) && (!regionFilter || contact.region === regionFilter) && (!statusFilter || contact.status === statusFilter);
     });
 
@@ -1747,12 +1840,12 @@ function renderContacts() {
         } else if (sortBy === 'date') {
             return (b.date || '').localeCompare(a.date || '');
         } else if (sortBy === 'lastname') {
-            const nameA = getNames(a.name);
-            const nameB = getNames(b.name);
+            const nameA = getNames(getContactName(a));
+	    const nameB = getNames(getContactName(b));
             return nameA.lastName.localeCompare(nameB.lastName, 'it', { sensitivity: 'base' });
         } else if (sortBy === 'firstname') {
-            const nameA = getNames(a.name);
-            const nameB = getNames(b.name);
+            const nameA = getNames(getContactName(a));
+	    const nameB = getNames(getContactName(b));
             return nameA.firstName.localeCompare(nameB.firstName, 'it', { sensitivity: 'base' });
         } else if (sortBy === 'status') {
             return (a.status || '').localeCompare(b.status || '', 'it', { sensitivity: 'base' });
@@ -1768,8 +1861,7 @@ function renderContacts() {
     list.innerHTML = filtered.map(contact => {
         // Questa riga serve a leggere il nome sia se si chiama 'name' sia se si chiama 'nome' nel database di Supabase
         console.log("Oggetto contatto da Supabase:", contact);
-const rawName = contact.name || contact.nome || contact.Nome || contact.Cognome || contact.first_name || '';
-const displayName = String(rawName).trim() !== '' ? String(rawName).trim() : 'Contatto Senza Nome';
+const displayName = getContactName(contact);
         
         const communications = [...(contact.communications || [])].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
         const phoneHtml = contact.phone ? ` · 📞 <a href="tel:${escapeHtml(contact.phone)}" style="color:var(--primary);text-decoration:none;">${escapeHtml(contact.phone)}</a>` : '';
