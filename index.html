@@ -146,6 +146,10 @@
     <button class="nav-btn" id="nav-contatti" onclick="showPage('contatti')">👥 Contatti</button>
     <button class="nav-btn" id="nav-diplomi" onclick="showPage('diplomi')">🎓 Diplomi</button>
     <button class="nav-btn" id="nav-calendario" onclick="showPage('calendario')">📅 Calendario</button>
+    <!-- INDICATORE STATO -->
+    <div id="dbStatusBadge" style="margin-left:auto; font-size:12px; font-weight:600; padding:6px 12px; border-radius:20px; background:#fef3c7; color:#92400e;">
+        🟡 Connessione DB in corso...
+    </div>
 </nav>
 <div class="container">
     <section id="page-home" class="page-section active">
@@ -526,14 +530,15 @@ let calendarCursor = new Date();
 const contactStorageKey = 'gestionale_contatti_db';
 
 // --- CONFIGURAZIONE SUPABASE ---
-const SUPABASE_URL = 'https://TUO-PROGETTO.supabase.co'; // Inserisci la tua URL
-const SUPABASE_ANON_KEY = 'LA_TUA_CHIAVE_ANONIMA';        // Inserisci la tua chiave anonima
+const SUPABASE_URL = 'https://kqjwviodibacjpxcrpoz.supabase.co'; // Inserisci la tua URL
+const SUPABASE_ANON_KEY = 'sb_publishable_j5Bv_5uaCZtMSPh2lVvD9g_9oxnaYRi';        // Inserisci la tua chiave anonima
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- FUNZIONE DI CARICAMENTO CLOUD ---
 async function loadDataFromSupabase() {
+    const statusBadge = document.getElementById('dbStatusBadge');
     try {
-        const { data: contactsData, error: contactsError } = await supabaseClient.from('contacts').select('*');
+        const { data: contactsData, error: contactsError } = await supabaseClient.from('contatti').select('*');
         if (!contactsError && contactsData && contactsData.length > 0) {
             contactsDb = contactsData;
             localStorage.setItem(contactStorageKey, JSON.stringify(contactsDb));
@@ -545,13 +550,24 @@ async function loadDataFromSupabase() {
             localStorage.setItem('gestionale_db', JSON.stringify(db));
         }
 
+        if (statusBadge) {
+            statusBadge.style.background = '#dcfce7';
+            statusBadge.style.color = '#166534';
+            statusBadge.innerHTML = '🟢 Supabase Connesso';
+        }
+
         renderContacts();
         renderCalendar();
         renderTable();
         updateStatistics();
         updateHomeCounters();
     } catch (err) {
-        console.warn('Errore Supabase, uso dati locali:', err);
+        console.warn('Errore Supabase:', err);
+        if (statusBadge) {
+            statusBadge.style.background = '#fee2e2';
+            statusBadge.style.color = '#991b1b';
+            statusBadge.innerHTML = '🔴 Errore Connessione';
+        }
     }
 }
 
@@ -1565,6 +1581,11 @@ function renderContacts() {
     }
 
     list.innerHTML = filtered.map(contact => {
+        // Questa riga serve a leggere il nome sia se si chiama 'name' sia se si chiama 'nome' nel database di Supabase
+        console.log("Oggetto contatto da Supabase:", contact);
+const rawName = contact.name || contact.nome || contact.Nome || contact.Cognome || contact.first_name || '';
+const displayName = String(rawName).trim() !== '' ? String(rawName).trim() : 'Contatto Senza Nome';
+        
         const communications = [...(contact.communications || [])].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
         const phoneHtml = contact.phone ? ` · 📞 <a href="tel:${escapeHtml(contact.phone)}" style="color:var(--primary);text-decoration:none;">${escapeHtml(contact.phone)}</a>` : '';
         const gcalBtn = contact.appointment ? `<a href="${getGoogleCalendarUrl(contact)}" target="_blank" class="btn btn-sm btn-gcal">📅 Aggiungi a Google Calendar</a>` : '';
@@ -1580,7 +1601,7 @@ function renderContacts() {
 
         return `<article class="contact-item" style="${bgStyle}">
             <div class="contact-top">
-                <div><strong><i class="type-dot ${typeDotClass(contact.type)}"></i>${escapeHtml(contact.name)}</strong>
+                <div><strong><i class="type-dot ${typeDotClass(contact.type)}"></i>${escapeHtml(displayName)}</strong>
                 <div class="contact-meta">${escapeHtml(contact.region)}${phoneHtml} · Inserito il ${escapeHtml(contact.date || '')}</div></div>
                 <span class="badge">${escapeHtml(contact.status || '')}</span>
             </div>
@@ -1672,7 +1693,6 @@ window.onload = function() {
 
     // Poi scarica e sincronizza da Supabase
     loadDataFromSupabase();
-
     resetContactForm();
     renderContacts();
     renderCalendar();
