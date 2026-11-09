@@ -147,9 +147,10 @@
     <button class="nav-btn" id="nav-diplomi" onclick="showPage('diplomi')">🎓 Diplomi</button>
     <button class="nav-btn" id="nav-calendario" onclick="showPage('calendario')">📅 Calendario</button>
     <!-- INDICATORE STATO -->
-    <div id="dbStatusBadge" style="margin-left:auto; font-size:12px; font-weight:600; padding:6px 12px; border-radius:20px; background:#fef3c7; color:#92400e;">
-        🟡 Connessione DB in corso...
-    </div>
+   <div id="dbStatusBadge" style="margin-left:auto; font-size:12px; font-weight:600; padding:6px 12px; border-radius:20px; background:#fef3c7; color:#92400e;">
+    🟡 Connessione DB in corso...
+</div>
+
 </nav>
 <div class="container">
     <section id="page-home" class="page-section active">
@@ -523,10 +524,28 @@
     </section>
 </div>
 
+	<div id="cloudStatusBadge" style="
+    position:fixed;
+    bottom:18px;
+    right:18px;
+    z-index:99999;
+    padding:11px 17px;
+    border-radius:30px;
+    background:#fef3c7;
+    color:#92400e;
+    font-size:13px;
+    font-weight:700;
+    box-shadow:0 3px 12px rgba(0,0,0,0.18);
+">
+    🟡 VERIFICA DATABASE...
+</div>
+
 <script>
 let db = [];
 let contactsDb = [];
 let calendarCursor = new Date();
+let cloudReady = false;
+
 const contactStorageKey = 'gestionale_contatti_db';
 
 // --- CONFIGURAZIONE SUPABASE ---
@@ -534,40 +553,106 @@ const SUPABASE_URL = 'https://kqjwviodibacjpxcrpoz.supabase.co'; // Inserisci la
 const SUPABASE_ANON_KEY = 'sb_publishable_j5Bv_5uaCZtMSPh2lVvD9g_9oxnaYRi';        // Inserisci la tua chiave anonima
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+function updateCloudStatus(status, message) {
+
+    const badge = document.getElementById('cloudStatusBadge');
+
+    if (!badge) return;
+
+    const styles = {
+        checking: {
+            background: '#fef3c7',
+            color: '#92400e',
+            text: '🟡 VERIFICA IN CORSO'
+        },
+        connected: {
+            background: '#dcfce7',
+            color: '#166534',
+            text: '🟢 DATABASE CONNESSO'
+        },
+        error: {
+            background: '#fee2e2',
+            color: '#991b1b',
+            text: '🔴 DATABASE NON RAGGIUNGIBILE'
+        }
+    };
+
+    const current = styles[status];
+
+    badge.style.background = current.background;
+    badge.style.color = current.color;
+    badge.innerHTML = current.text;
+
+    badge.title = message || '';
+}
+
 // --- FUNZIONE DI CARICAMENTO CLOUD ---
 async function loadDataFromSupabase() {
-    const statusBadge = document.getElementById('dbStatusBadge');
+
+    updateCloudStatus('checking');
+
     try {
-        const { data: contactsData, error: contactsError } = await supabaseClient.from('contatti').select('*');
-        if (!contactsError && contactsData && contactsData.length > 0) {
-            contactsDb = contactsData;
-            localStorage.setItem(contactStorageKey, JSON.stringify(contactsDb));
-        }
 
-        const { data: diplomiData, error: diplomiError } = await supabaseClient.from('diplomi').select('*');
-        if (!diplomiError && diplomiData && diplomiData.length > 0) {
-            db = diplomiData;
-            localStorage.setItem('gestionale_db', JSON.stringify(db));
-        }
+        const { data: contactsData, error: contactsError } =
+            await supabaseClient.from('contatti').select('*');
 
-        if (statusBadge) {
-            statusBadge.style.background = '#dcfce7';
-            statusBadge.style.color = '#166534';
-            statusBadge.innerHTML = '🟢 Supabase Connesso';
-        }
+        if (contactsError) throw contactsError;
+
+        const { data: diplomiData, error: diplomiError } =
+            await supabaseClient.from('diplomi').select('*');
+
+        if (diplomiError) throw diplomiError;
+
+        contactsDb = contactsData || [];
+	db = diplomiData || [];
+
+// Normalizza i dati dei contatti senza eliminare i campi originali
+contactsDb = contactsDb.map(contact => ({
+    ...contact,
+    name: contact.name || contact.full_name || contact.fullName ||
+          `${contact.first_name || contact.firstName || contact.nome || ''} ${contact.last_name || contact.lastName || contact.cognome || ''}`.trim(),
+    phone: contact.phone || '',
+    communications: Array.isArray(contact.communications)
+        ? contact.communications
+        : []
+}));
+
+// Il database è pronto solo dopo aver letto entrambe le tabelle
+cloudReady = true;
+
+        localStorage.setItem(
+            contactStorageKey,
+            JSON.stringify(contactsDb)
+        );
+
+        localStorage.setItem(
+            'gestionale_db',
+            JSON.stringify(db)
+        );
+
+        updateCloudStatus(
+            'connected',
+            'Entrambe le tabelle sono state lette correttamente da Supabase.'
+        );
 
         renderContacts();
         renderCalendar();
         renderTable();
         updateStatistics();
         updateHomeCounters();
+
     } catch (err) {
-        console.warn('Errore Supabase:', err);
-        if (statusBadge) {
-            statusBadge.style.background = '#fee2e2';
-            statusBadge.style.color = '#991b1b';
-            statusBadge.innerHTML = '🔴 Errore Connessione';
-        }
+
+        console.error('Errore Supabase:', err);
+
+        updateCloudStatus(
+            'error',
+            err.message || 'Errore di connessione o autorizzazione.'
+        );
+
+        alert(
+            'Attenzione: impossibile leggere correttamente i dati da Supabase. Controlla la connessione e la console.'
+        );
     }
 }
 
@@ -624,13 +709,75 @@ function getDiplomaGroup(diplomaStr) {
     return str;
 }
 
-function saveData() {
+async function saveData() {
+
+    if (!cloudReady) {
+        alert('Supabase non è pronto. Attendi il caricamento dei dati prima di effettuare modifiche.');
+        return;
+    }
+
     try {
-        localStorage.setItem('gestionale_db', JSON.stringify(db));
-    } catch(e) {}
-    populateDropdowns();
-    renderTable();
-    updateStatistics();
+
+        // Assegna un identificativo ai nuovi diplomi
+        db.forEach(item => {
+            if (!item.sync_id) {
+                item.sync_id = crypto.randomUUID();
+            }
+        });
+
+        // Salva i diplomi su Supabase
+        if (db.length > 0) {
+
+            const { error: saveError } = await supabaseClient
+                .from('diplomi')
+                .upsert(db, { onConflict: 'sync_id' });
+
+            if (saveError) throw saveError;
+        }
+
+        // Elimina dal cloud i diplomi eliminati dal gestionale
+        let deleteQuery = supabaseClient
+            .from('diplomi')
+            .delete();
+
+        if (db.length > 0) {
+            const ids = db.map(item => item.sync_id).join(',');
+
+            deleteQuery = deleteQuery.not(
+                'sync_id',
+                'in',
+                `(${ids})`
+            );
+        } else {
+            deleteQuery = deleteQuery.not('sync_id', 'is', null);
+        }
+
+        const { error: deleteError } = await deleteQuery;
+
+        if (deleteError) throw deleteError;
+
+        // Copia locale di sicurezza
+        localStorage.setItem(
+            'gestionale_db',
+            JSON.stringify(db)
+        );
+
+        populateDropdowns();
+        renderTable();
+        updateStatistics();
+        updateHomeCounters();
+
+        console.log('Diplomi salvati correttamente su Supabase.');
+
+    } catch (error) {
+
+        console.error('Errore salvataggio diplomi:', error);
+
+        alert(
+            'Errore durante il salvataggio dei diplomi su Supabase. ' +
+            'Le modifiche non sono state confermate sul cloud. Controlla la console.'
+        );
+    }
 }
 
 function toggleStats() {
@@ -1338,16 +1485,68 @@ function loadContacts() {
     }
 }
 
-function persistContacts() {
+async function persistContacts() {
+
+    // 1. Salvataggio locale immediato
     try {
-        localStorage.setItem(contactStorageKey, JSON.stringify(contactsDb));
+
+        localStorage.setItem(
+            contactStorageKey,
+            JSON.stringify(contactsDb)
+        );
+
     } catch (error) {
-        alert('Non è stato possibile salvare i contatti. La memoria del browser potrebbe essere piena.');
-        return;
+
+        console.error('Errore salvataggio locale:', error);
+
+        alert('Impossibile salvare i contatti nel browser.');
+
+        return false;
     }
+
+    // 2. Aggiornamento immediato dell'interfaccia
     renderContacts();
     renderCalendar();
     updateHomeCounters();
+
+    // 3. Se Supabase non è disponibile, mantieni i dati locali
+    if (!cloudReady) {
+
+        console.warn(
+            'Contatti salvati localmente. Supabase non è ancora disponibile.'
+        );
+
+        return false;
+    }
+
+    // 4. Sincronizzazione cloud
+    try {
+
+        if (contactsDb.length > 0) {
+
+            const { error } = await supabaseClient
+                .from('contatti')
+                .upsert(contactsDb, { onConflict: 'id' });
+
+            if (error) throw error;
+        }
+
+        console.log('Contatti sincronizzati correttamente.');
+
+        return true;
+
+    } catch (error) {
+
+        console.error('Errore sincronizzazione contatti:', error);
+
+        alert(
+            'I contatti sono stati salvati localmente, ' +
+            'ma non è stato possibile sincronizzarli con Supabase. ' +
+            'Non aggiornare o cancellare i dati manualmente.'
+        );
+
+        return false;
+    }
 }
 
 function resetContactForm() {
@@ -1362,7 +1561,7 @@ function resetContactForm() {
     document.getElementById('contactFormTitle').textContent = 'Aggiungi contatto';
 }
 
-function saveContact(event) {
+async function saveContact(event) {
     event.preventDefault();
     
     // Verifica della connessione (Falsa connessione / controllo online con fallback di avviso)
@@ -1407,9 +1606,12 @@ function saveContact(event) {
     contact.status = status;
     if (note) contact.communications.push({ id: String(Date.now()) + Math.random(), text: note, timestamp: new Date().toISOString() });
 
-    persistContacts();
+    const saved = await persistContacts();
+
+    if (saved) {
     resetContactForm();
-    toggleContactForm();
+    document.getElementById('contactFormCard').style.display = 'none';
+}
     
     // Messaggio di conferma con feedback di stato connessione
     if (isOnline) {
@@ -1422,7 +1624,7 @@ function editContact(id) {
     if (!contact) return;
     
     // Separa nome e cognome dal campo intero 'name' salvato nel database
-    const nameParts = (contact.name || '').trim().split(' ');
+    const nameParts = getContactName(contact).trim().split(/\s+/);
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '';
 
@@ -1449,12 +1651,53 @@ function editContact(id) {
     document.getElementById('contactFirstName').focus();
 }
 
-function deleteContact(id) {
+async function deleteContact(id) {
+
     const contact = contactsDb.find(item => item.id === id);
+
     if (!contact) return;
-    if (!confirm(`Vuoi eliminare il contatto "${contact.name}" e tutte le sue comunicazioni?`)) return;
+
+    if (!confirm(
+        `Vuoi eliminare il contatto "${getContactName(contact)}" e tutte le sue comunicazioni?`
+    )) return;
+
+    // Rimuove il contatto dall'archivio locale
     contactsDb = contactsDb.filter(item => item.id !== id);
-    persistContacts();
+
+    // Aggiorna immediatamente la copia locale
+    localStorage.setItem(
+        contactStorageKey,
+        JSON.stringify(contactsDb)
+    );
+
+    renderContacts();
+    renderCalendar();
+    updateHomeCounters();
+
+    // Elimina esclusivamente il contatto selezionato dal cloud
+    if (cloudReady) {
+
+        try {
+
+            const { error } = await supabaseClient
+                .from('contatti')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+
+            console.log('Contatto eliminato correttamente.');
+
+        } catch (error) {
+
+            console.error('Errore eliminazione cloud:', error);
+
+            alert(
+                'Il contatto è stato rimosso localmente, ' +
+                'ma non dal database Supabase.'
+            );
+        }
+    }
 }
 
 function editCommunication(contactId, communicationId) {
@@ -1511,6 +1754,41 @@ function getGoogleCalendarUrl(contact) {
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${dates}&details=${details}`;
 }
 
+// Recupera correttamente nome e cognome da diversi formati
+function getContactName(contact) {
+    if (!contact) return 'Contatto Senza Nome';
+
+    const firstName =
+        contact.first_name ||
+        contact.firstName ||
+        contact.firstname ||
+        contact.nome ||
+        contact.Nome ||
+        '';
+
+    const lastName =
+        contact.last_name ||
+        contact.lastName ||
+        contact.lastname ||
+        contact.cognome ||
+        contact.Cognome ||
+        '';
+
+    const fullName =
+        contact.name ||
+        contact.full_name ||
+        contact.fullName ||
+        contact.nome_completo ||
+        contact.nomeCompleto ||
+        '';
+
+    if (String(firstName).trim() || String(lastName).trim()) {
+        return `${firstName} ${lastName}`.trim();
+    }
+
+    return String(fullName).trim() || 'Contatto Senza Nome';
+}
+
 function renderContacts() {
     const list = document.getElementById('contactsList');
     if (!list) return;
@@ -1520,9 +1798,18 @@ function renderContacts() {
     const sortBy = document.getElementById('contactSortSelect')?.value || 'appointment';
 
     let filtered = contactsDb.filter(contact => {
-        const text = [contact.name, contact.phone, contact.region, contact.status, ...(contact.communications || []).map(c => c.text)].join(' ').toLowerCase();
-        return (!search || text.includes(search)) && (!regionFilter || contact.region === regionFilter) && (!statusFilter || contact.status === statusFilter);
-    });
+    const text = [
+        getContactName(contact),
+        contact.phone,
+        contact.region,
+        contact.status,
+        ...(contact.communications || []).map(c => c.text)
+    ].join(' ').toLowerCase();
+
+    return (!search || text.includes(search)) &&
+           (!regionFilter || contact.region === regionFilter) &&
+           (!statusFilter || contact.status === statusFilter);
+});
 
     const getNames = (fullName) => {
         const parts = (fullName || '').trim().split(' ');
@@ -1562,12 +1849,12 @@ function renderContacts() {
         } else if (sortBy === 'date') {
             return (b.date || '').localeCompare(a.date || '');
         } else if (sortBy === 'lastname') {
-            const nameA = getNames(a.name);
-            const nameB = getNames(b.name);
+            const nameA = getNames(getContactName(a));
+	    const nameB = getNames(getContactName(b));
             return nameA.lastName.localeCompare(nameB.lastName, 'it', { sensitivity: 'base' });
         } else if (sortBy === 'firstname') {
-            const nameA = getNames(a.name);
-            const nameB = getNames(b.name);
+            const nameA = getNames(getContactName(a));
+	    const nameB = getNames(getContactName(b));
             return nameA.firstName.localeCompare(nameB.firstName, 'it', { sensitivity: 'base' });
         } else if (sortBy === 'status') {
             return (a.status || '').localeCompare(b.status || '', 'it', { sensitivity: 'base' });
@@ -1583,8 +1870,7 @@ function renderContacts() {
     list.innerHTML = filtered.map(contact => {
         // Questa riga serve a leggere il nome sia se si chiama 'name' sia se si chiama 'nome' nel database di Supabase
         console.log("Oggetto contatto da Supabase:", contact);
-const rawName = contact.name || contact.nome || contact.Nome || contact.Cognome || contact.first_name || '';
-const displayName = String(rawName).trim() !== '' ? String(rawName).trim() : 'Contatto Senza Nome';
+const displayName = getContactName(contact);
         
         const communications = [...(contact.communications || [])].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
         const phoneHtml = contact.phone ? ` · 📞 <a href="tel:${escapeHtml(contact.phone)}" style="color:var(--primary);text-decoration:none;">${escapeHtml(contact.phone)}</a>` : '';
