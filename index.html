@@ -1560,7 +1560,7 @@ function resetContactForm() {
     document.getElementById('contactFormTitle').textContent = 'Aggiungi contatto';
 }
 
-function saveContact(event) {
+async function saveContact(event) {
     event.preventDefault();
     
     // Verifica della connessione (Falsa connessione / controllo online con fallback di avviso)
@@ -1605,9 +1605,12 @@ function saveContact(event) {
     contact.status = status;
     if (note) contact.communications.push({ id: String(Date.now()) + Math.random(), text: note, timestamp: new Date().toISOString() });
 
-    persistContacts();
+    const saved = await persistContacts();
+
+    if (saved) {
     resetContactForm();
-    toggleContactForm();
+    document.getElementById('contactFormCard').style.display = 'none';
+}
     
     // Messaggio di conferma con feedback di stato connessione
     if (isOnline) {
@@ -1647,12 +1650,53 @@ function editContact(id) {
     document.getElementById('contactFirstName').focus();
 }
 
-function deleteContact(id) {
+async function deleteContact(id) {
+
     const contact = contactsDb.find(item => item.id === id);
+
     if (!contact) return;
-    if (!confirm(`Vuoi eliminare il contatto "${contact.name}" e tutte le sue comunicazioni?`)) return;
+
+    if (!confirm(
+        `Vuoi eliminare il contatto "${getContactName(contact)}" e tutte le sue comunicazioni?`
+    )) return;
+
+    // Rimuove il contatto dall'archivio locale
     contactsDb = contactsDb.filter(item => item.id !== id);
-    persistContacts();
+
+    // Aggiorna immediatamente la copia locale
+    localStorage.setItem(
+        contactStorageKey,
+        JSON.stringify(contactsDb)
+    );
+
+    renderContacts();
+    renderCalendar();
+    updateHomeCounters();
+
+    // Elimina esclusivamente il contatto selezionato dal cloud
+    if (cloudReady) {
+
+        try {
+
+            const { error } = await supabaseClient
+                .from('contatti')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+
+            console.log('Contatto eliminato correttamente.');
+
+        } catch (error) {
+
+            console.error('Errore eliminazione cloud:', error);
+
+            alert(
+                'Il contatto è stato rimosso localmente, ' +
+                'ma non dal database Supabase.'
+            );
+        }
+    }
 }
 
 function editCommunication(contactId, communicationId) {
