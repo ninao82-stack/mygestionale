@@ -6,9 +6,7 @@
     <title>Gestionale Diplomi e Contatti</title>
     <!-- Libreria XLSX per leggere ed esportare file Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- Supabase SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-	<style>
+    <style>
         :root {
             --primary: #2563eb;
             --primary-hover: #1d4ed8;
@@ -525,36 +523,6 @@ let contactsDb = [];
 let calendarCursor = new Date();
 const contactStorageKey = 'gestionale_contatti_db';
 
-// --- CONFIGURAZIONE SUPABASE ---
-const SUPABASE_URL = 'https://TUO-PROGETTO.supabase.co'; // Inserisci la tua URL
-const SUPABASE_ANON_KEY = 'LA_TUA_CHIAVE_ANONIMA';        // Inserisci la tua chiave anonima
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// --- FUNZIONE DI CARICAMENTO CLOUD ---
-async function loadDataFromSupabase() {
-    try {
-        const { data: contactsData, error: contactsError } = await supabaseClient.from('contacts').select('*');
-        if (!contactsError && contactsData && contactsData.length > 0) {
-            contactsDb = contactsData;
-            localStorage.setItem(contactStorageKey, JSON.stringify(contactsDb));
-        }
-
-        const { data: diplomiData, error: diplomiError } = await supabaseClient.from('diplomi').select('*');
-        if (!diplomiError && diplomiData && diplomiData.length > 0) {
-            db = diplomiData;
-            localStorage.setItem('gestionale_db', JSON.stringify(db));
-        }
-
-        renderContacts();
-        renderCalendar();
-        renderTable();
-        updateStatistics();
-        updateHomeCounters();
-    } catch (err) {
-        console.warn('Errore Supabase, uso dati locali:', err);
-    }
-}
-
 let tempImportedData = [];
 let currentStatsTab = 'anno';
 let currentSortColumn = null;
@@ -760,14 +728,11 @@ function renderStatsTable() {
         });
     }
 
-    // Intestazione estesa con i 3 anni precedenti
     thead.innerHTML = `
         <tr>
             <th>${titleCol}</th>
             <th>ISCRITTI TOTALI</th>
-            <th>VAR. % (-1 Anno)</th>
-            <th>VAR. % (-2 Anni)</th>
-            <th>VAR. % (-3 Anni)</th>
+            <th>VAR. % ANNO PREC.</th>
             <th>PAGATI</th>
         </tr>
     `;
@@ -779,20 +744,9 @@ function renderStatsTable() {
     });
 
     if (filteredDb.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--text-muted); padding: 20px;">Nessun dato trovato per i filtri di analisi selezionati.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color: var(--text-muted); padding: 20px;">Nessun dato trovato per i filtri di analisi selezionati.</td></tr>`;
         return;
     }
-
-    // Funzione di supporto per calcolare il badge di variazione percentuale rispetto a un anno di riferimento
-    const calcVarBadge = (currentCount, prevCount, prevYearLabel) => {
-        if (prevCount > 0) {
-            const diff = ((currentCount - prevCount) / prevCount) * 100;
-            const sign = diff > 0 ? '+' : '';
-            const badgeClass = diff > 0 ? 'badge-var-plus' : (diff < 0 ? 'badge-var-minus' : 'badge-var-neutral');
-            return `<span class="badge ${badgeClass}">${sign}${diff.toFixed(1)}%</span> <span style="font-size: 11px; color: var(--text-muted);">vs ${prevYearLabel} (${prevCount})</span>`;
-        }
-        return `<span class="badge badge-var-neutral">0 nel ${prevYearLabel}</span>`;
-    };
 
     sortedKeys.forEach(key => {
         const list = groupMap[key];
@@ -801,57 +755,51 @@ function renderStatsTable() {
         const count = list.length;
         const pagati = list.filter(i => i.pagamento === 'PAGATO').length;
 
-        let y1VarHTML = `<span class="badge badge-var-neutral">N/A</span>`;
-        let y2VarHTML = `<span class="badge badge-var-neutral">N/A</span>`;
-        let y3VarHTML = `<span class="badge badge-var-neutral">N/A</span>`;
+        let varPercentHTML = `<span class="badge badge-var-neutral">N/A</span>`;
 
         if (currentStatsTab === 'anno' && !isNaN(parseInt(key, 10))) {
             const currentYearNum = parseInt(key, 10);
-            
-            const y1Str = String(currentYearNum - 1);
-            const y2Str = String(currentYearNum - 2);
-            const y3Str = String(currentYearNum - 3);
+            const prevYearStr = String(currentYearNum - 1);
+            const prevYearData = getFilteredStatsData(prevYearStr);
+            const prevCount = prevYearData.length;
 
-            const y1Count = getFilteredStatsData(y1Str).length;
-            const y2Count = getFilteredStatsData(y2Str).length;
-            const y3Count = getFilteredStatsData(y3Str).length;
-
-            y1VarHTML = calcVarBadge(count, y1Count, y1Str);
-            y2VarHTML = calcVarBadge(count, y2Count, y2Str);
-            y3VarHTML = calcVarBadge(count, y3Count, y3Str);
-
+            if (prevCount > 0) {
+                const diff = ((count - prevCount) / prevCount) * 100;
+                const sign = diff > 0 ? '+' : '';
+                const badgeClass = diff > 0 ? 'badge-var-plus' : (diff < 0 ? 'badge-var-minus' : 'badge-var-neutral');
+                varPercentHTML = `<span class="badge ${badgeClass}">${sign}${diff.toFixed(1)}%</span> <span style="font-size: 11px; color: var(--text-muted);">vs ${prevYearStr} (${prevCount})</span>`;
+            } else {
+                varPercentHTML = `<span class="badge badge-var-neutral">Nessun dato ${prevYearStr}</span>`;
+            }
         } else if (currentStatsTab !== 'anno') {
             const selectedAnno = document.getElementById('statsFilterAnno').value;
             if (selectedAnno && !isNaN(parseInt(selectedAnno, 10))) {
-                const baseYearNum = parseInt(selectedAnno, 10);
-                const y1Str = String(baseYearNum - 1);
-                const y2Str = String(baseYearNum - 2);
-                const y3Str = String(baseYearNum - 3);
-
-                const getSubCountForYear = (yearStr) => {
-                    const yearData = getFilteredStatsData(yearStr);
-                    if (currentStatsTab === 'mese') {
-                        return yearData.filter(i => extractMonthIndex(i.data) === nomiMesi.indexOf(key)).length;
-                    } else if (currentStatsTab === 'regione') {
-                        return yearData.filter(i => (i.regione || "Non specificata") === key).length;
-                    } else if (currentStatsTab === 'diploma') {
-                        if (isCumulativo) {
-                            return yearData.filter(i => getDiplomaGroup(i.diploma) === key).length;
-                        } else {
-                            return yearData.filter(i => (i.diploma || "Nessun Diploma") === key).length;
-                        }
+                const prevYearStr = String(parseInt(selectedAnno, 10) - 1);
+                const prevYearData = getFilteredStatsData(prevYearStr);
+                
+                let prevCount = 0;
+                if (currentStatsTab === 'mese') {
+                    prevCount = prevYearData.filter(i => extractMonthIndex(i.data) === nomiMesi.indexOf(key)).length;
+                } else if (currentStatsTab === 'regione') {
+                    prevCount = prevYearData.filter(i => (i.regione || "Non specificata") === key).length;
+                } else if (currentStatsTab === 'diploma') {
+                    if (isCumulativo) {
+                        prevCount = prevYearData.filter(i => getDiplomaGroup(i.diploma) === key).length;
+                    } else {
+                        prevCount = prevYearData.filter(i => (i.diploma || "Nessun Diploma") === key).length;
                     }
-                    return 0;
-                };
+                }
 
-                y1VarHTML = calcVarBadge(count, getSubCountForYear(y1Str), y1Str);
-                y2VarHTML = calcVarBadge(count, getSubCountForYear(y2Str), y2Str);
-                y3VarHTML = calcVarBadge(count, getSubCountForYear(y3Str), y3Str);
+                if (prevCount > 0) {
+                    const diff = ((count - prevCount) / prevCount) * 100;
+                    const sign = diff > 0 ? '+' : '';
+                    const badgeClass = diff > 0 ? 'badge-var-plus' : (diff < 0 ? 'badge-var-minus' : 'badge-var-neutral');
+                    varPercentHTML = `<span class="badge ${badgeClass}">${sign}${diff.toFixed(1)}%</span> <span style="font-size: 11px; color: var(--text-muted);">vs ${prevYearStr} (${prevCount})</span>`;
+                } else {
+                    varPercentHTML = `<span class="badge badge-var-neutral">0 nel ${prevYearStr}</span>`;
+                }
             } else {
-                const msg = `<span class="badge badge-var-neutral" title="Seleziona un anno specifico nei filtri in alto">Seleziona Anno</span>`;
-                y1VarHTML = msg;
-                y2VarHTML = msg;
-                y3VarHTML = msg;
+                varPercentHTML = `<span class="badge badge-var-neutral" title="Seleziona un anno specifico nel filtro per la variazione YoY">Seleziona Anno</span>`;
             }
         }
 
@@ -859,9 +807,7 @@ function renderStatsTable() {
         tr.innerHTML = `
             <td><strong>${key}</strong></td>
             <td><strong>${count}</strong></td>
-            <td>${y1VarHTML}</td>
-            <td>${y2VarHTML}</td>
-            <td>${y3VarHTML}</td>
+            <td>${varPercentHTML}</td>
             <td><span class="badge badge-pagato">${pagati}</span></td>
         `;
         tbody.appendChild(tr);
@@ -1348,13 +1294,6 @@ function resetContactForm() {
 
 function saveContact(event) {
     event.preventDefault();
-    
-    // Verifica della connessione (Falsa connessione / controllo online con fallback di avviso)
-    const isOnline = navigator.onLine;
-    if (!isOnline) {
-        alert('⚠️ Attenzione: Connessione di rete assente o instabile. Il contatto verrà comunque salvato nell\'archivio locale di sicurezza.');
-    }
-
     const id = document.getElementById('contactId').value;
     const firstName = document.getElementById('contactFirstName').value.trim();
     const lastName = document.getElementById('contactLastName').value.trim();
@@ -1394,11 +1333,6 @@ function saveContact(event) {
     persistContacts();
     resetContactForm();
     toggleContactForm();
-    
-    // Messaggio di conferma con feedback di stato connessione
-    if (isOnline) {
-        // Operazione completata con successo online
-    }
 }
 
 function editContact(id) {
@@ -1663,16 +1597,8 @@ function toggleContactForm() {
 }
 
 window.onload = function() {
-    // Prima carica i dati locali di riserva
-    try {
-        const saved = localStorage.getItem('gestionale_db');
-        if (saved) db = JSON.parse(saved);
-    } catch(e) {}
+    saveData();
     loadContacts();
-
-    // Poi scarica e sincronizza da Supabase
-    loadDataFromSupabase();
-
     resetContactForm();
     renderContacts();
     renderCalendar();
