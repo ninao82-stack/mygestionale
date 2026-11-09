@@ -1843,15 +1843,18 @@ function renderContacts() {
     const sortBy = document.getElementById('contactSortSelect')?.value || 'appointment';
 
     let filtered = contactsDb.filter(contact => {
-        const text = [getContactName(contact), contact.phone, contact.region, contact.status, ...(contact.communications || []).map(c => c.text)].join(' ').toLowerCase();
-    getContactName(contact),
-    contact.phone,
-    contact.region,
-    contact.status,
-    ...(contact.communications || []).map(c => c.text)
-].join(' ').toLowerCase();
-        return (!search || text.includes(search)) && (!regionFilter || contact.region === regionFilter) && (!statusFilter || contact.status === statusFilter);
-    });
+    const text = [
+        getContactName(contact),
+        contact.phone,
+        contact.region,
+        contact.status,
+        ...(contact.communications || []).map(c => c.text)
+    ].join(' ').toLowerCase();
+
+    return (!search || text.includes(search)) &&
+           (!regionFilter || contact.region === regionFilter) &&
+           (!statusFilter || contact.status === statusFilter);
+});
 
     const getNames = (fullName) => {
         const parts = (fullName || '').trim().split(' ');
