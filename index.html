@@ -527,8 +527,6 @@
 let db = [];
 let contactsDb = [];
 let calendarCursor = new Date();
-let cloudReady = false;
-
 const contactStorageKey = 'gestionale_contatti_db';
 
 // --- CONFIGURAZIONE SUPABASE ---
@@ -539,48 +537,18 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // --- FUNZIONE DI CARICAMENTO CLOUD ---
 async function loadDataFromSupabase() {
     const statusBadge = document.getElementById('dbStatusBadge');
-
-    cloudReady = false;
-
     try {
-        const [
-            { data: contactsData, error: contactsError },
-            { data: diplomiData, error: diplomiError }
-        ] = await Promise.all([
-            supabaseClient.from('contatti').select('*'),
-            supabaseClient.from('diplomi').select('*')
-        ]);
+        const { data: contactsData, error: contactsError } = await supabaseClient.from('contatti').select('*');
+        if (!contactsError && contactsData && contactsData.length > 0) {
+            contactsDb = contactsData;
+            localStorage.setItem(contactStorageKey, JSON.stringify(contactsDb));
+        }
 
-        if (contactsError) throw contactsError;
-        if (diplomiError) throw diplomiError;
-
-        // Caricamento contatti
-        contactsDb = (contactsData || []).map(c => ({
-            ...c,
-            communications: Array.isArray(c.communications)
-                ? c.communications
-                : []
-        }));
-
-        // Caricamento diplomi
-        db = (diplomiData || []).map(item => ({
-            ...item
-        }));
-
-        // Copia locale di sicurezza
-        localStorage.setItem(
-            contactStorageKey,
-            JSON.stringify(contactsDb)
-        );
-
-        localStorage.setItem(
-            'gestionale_db',
-            JSON.stringify(db)
-        );
-
-        // Il cloud è pronto soltanto se entrambe le tabelle
-        // sono state caricate senza errori.
-        cloudReady = true;
+        const { data: diplomiData, error: diplomiError } = await supabaseClient.from('diplomi').select('*');
+        if (!diplomiError && diplomiData && diplomiData.length > 0) {
+            db = diplomiData;
+            localStorage.setItem('gestionale_db', JSON.stringify(db));
+        }
 
         if (statusBadge) {
             statusBadge.style.background = '#dcfce7';
@@ -593,24 +561,13 @@ async function loadDataFromSupabase() {
         renderTable();
         updateStatistics();
         updateHomeCounters();
-
-        console.log('Dati caricati correttamente da Supabase.');
-
     } catch (err) {
-        console.error('Errore caricamento Supabase:', err);
-
-        cloudReady = false;
-
+        console.warn('Errore Supabase:', err);
         if (statusBadge) {
             statusBadge.style.background = '#fee2e2';
             statusBadge.style.color = '#991b1b';
             statusBadge.innerHTML = '🔴 Errore Connessione';
         }
-
-        alert(
-            'Attenzione: non è stato possibile caricare tutti i dati da Supabase. ' +
-            'Il salvataggio delle modifiche è temporaneamente bloccato per evitare problemi.'
-        );
     }
 }
 
@@ -667,75 +624,13 @@ function getDiplomaGroup(diplomaStr) {
     return str;
 }
 
-async function saveData() {
-
-    if (!cloudReady) {
-        alert('Supabase non è pronto. Attendi il caricamento dei dati prima di effettuare modifiche.');
-        return;
-    }
-
+function saveData() {
     try {
-
-        // Assegna un identificativo ai nuovi diplomi
-        db.forEach(item => {
-            if (!item.sync_id) {
-                item.sync_id = crypto.randomUUID();
-            }
-        });
-
-        // Salva i diplomi su Supabase
-        if (db.length > 0) {
-
-            const { error: saveError } = await supabaseClient
-                .from('diplomi')
-                .upsert(db, { onConflict: 'sync_id' });
-
-            if (saveError) throw saveError;
-        }
-
-        // Elimina dal cloud i diplomi eliminati dal gestionale
-        let deleteQuery = supabaseClient
-            .from('diplomi')
-            .delete();
-
-        if (db.length > 0) {
-            const ids = db.map(item => item.sync_id).join(',');
-
-            deleteQuery = deleteQuery.not(
-                'sync_id',
-                'in',
-                `(${ids})`
-            );
-        } else {
-            deleteQuery = deleteQuery.not('sync_id', 'is', null);
-        }
-
-        const { error: deleteError } = await deleteQuery;
-
-        if (deleteError) throw deleteError;
-
-        // Copia locale di sicurezza
-        localStorage.setItem(
-            'gestionale_db',
-            JSON.stringify(db)
-        );
-
-        populateDropdowns();
-        renderTable();
-        updateStatistics();
-        updateHomeCounters();
-
-        console.log('Diplomi salvati correttamente su Supabase.');
-
-    } catch (error) {
-
-        console.error('Errore salvataggio diplomi:', error);
-
-        alert(
-            'Errore durante il salvataggio dei diplomi su Supabase. ' +
-            'Le modifiche non sono state confermate sul cloud. Controlla la console.'
-        );
-    }
+        localStorage.setItem('gestionale_db', JSON.stringify(db));
+    } catch(e) {}
+    populateDropdowns();
+    renderTable();
+    updateStatistics();
 }
 
 function toggleStats() {
@@ -1443,69 +1338,16 @@ function loadContacts() {
     }
 }
 
-async function persistContacts() {
-
-    if (!cloudReady) {
-        alert('Supabase non è pronto. Attendi il caricamento dei dati prima di effettuare modifiche.');
+function persistContacts() {
+    try {
+        localStorage.setItem(contactStorageKey, JSON.stringify(contactsDb));
+    } catch (error) {
+        alert('Non è stato possibile salvare i contatti. La memoria del browser potrebbe essere piena.');
         return;
     }
-
-    try {
-
-        // Salva o aggiorna tutti i contatti
-        if (contactsDb.length > 0) {
-
-            const { error: saveError } = await supabaseClient
-                .from('contatti')
-                .upsert(contactsDb, { onConflict: 'id' });
-
-            if (saveError) throw saveError;
-        }
-
-        // Elimina dal cloud i contatti rimossi dal gestionale
-        let deleteQuery = supabaseClient
-            .from('contatti')
-            .delete();
-
-        if (contactsDb.length > 0) {
-
-            const ids = contactsDb.map(c => c.id).join(',');
-
-            deleteQuery = deleteQuery.not(
-                'id',
-                'in',
-                `(${ids})`
-            );
-
-        } else {
-            deleteQuery = deleteQuery.not('id', 'is', null);
-        }
-
-        const { error: deleteError } = await deleteQuery;
-
-        if (deleteError) throw deleteError;
-
-        // Copia locale di sicurezza
-        localStorage.setItem(
-            contactStorageKey,
-            JSON.stringify(contactsDb)
-        );
-
-        renderContacts();
-        renderCalendar();
-        updateHomeCounters();
-
-        console.log('Contatti salvati correttamente su Supabase.');
-
-    } catch (error) {
-
-        console.error('Errore salvataggio contatti:', error);
-
-        alert(
-            'Errore durante il salvataggio dei contatti su Supabase. ' +
-            'Le modifiche non sono state confermate sul cloud. Controlla la console.'
-        );
-    }
+    renderContacts();
+    renderCalendar();
+    updateHomeCounters();
 }
 
 function resetContactForm() {
