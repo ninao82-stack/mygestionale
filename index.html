@@ -151,10 +151,6 @@
     🟡 Connessione DB in corso...
 </div>
 
-<button class="btn btn-outline" onclick="loadDataFromSupabase()" title="Ricarica i dati da Supabase">
-    ↻ Ricarica database
-</button>
-
 </nav>
 <div class="container">
     <section id="page-home" class="page-section active">
@@ -559,7 +555,7 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 function updateCloudStatus(status, message) {
 
-    const badge = document.getElementById('dbStatusBadge');
+    const badge = document.getElementById('cloudStatusBadge');
 
     if (!badge) return;
 
@@ -609,7 +605,6 @@ async function loadDataFromSupabase() {
 
         contactsDb = contactsData || [];
 	db = diplomiData || [];
-	cloudReady = true;
 
 // Normalizza i dati dei contatti senza eliminare i campi originali
 contactsDb = contactsDb.map(contact => ({
@@ -647,7 +642,6 @@ cloudReady = true;
         updateHomeCounters();
 
     } catch (err) {
-	cloudReady = false;
 
         console.error('Errore Supabase:', err);
 
