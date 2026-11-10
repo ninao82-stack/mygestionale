@@ -1412,14 +1412,28 @@ function resetContactForm() {
     document.getElementById('contactFormTitle').textContent = 'Aggiungi contatto';
 }
 
-function saveContact(event) {
-    event.preventDefault();
+async function deleteContact(id) {
+    const contact = contactsDb.find(item => item.id === id);
+    if (!contact) return;
+    if (!confirm(`Vuoi eliminare il contatto "${contact.name}" e tutte le sue comunicazioni?`)) return;
     
-    // Verifica della connessione (Falsa connessione / controllo online con fallback di avviso)
-    const isOnline = navigator.onLine;
-    if (!isOnline) {
-        alert('⚠️ Attenzione: Connessione di rete assente o instabile. Il contatto verrà comunque salvato nell\'archivio locale di sicurezza.');
+    contactsDb = contactsDb.filter(item => item.id !== id);
+    persistContacts();
+
+    // Eliminazione anche dal database Supabase
+    try {
+        const { error } = await supabaseClient
+            .from('contatti')
+            .delete()
+            .eq('id', id);
+            
+        if (error) {
+            console.error("Errore eliminazione Supabase:", error);
+        }
+    } catch (err) {
+        console.error("Eccezione Supabase:", err);
     }
+}
 
     const id = document.getElementById('contactId').value;
     const firstName = document.getElementById('contactFirstName').value.trim();
