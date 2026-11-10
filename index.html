@@ -449,8 +449,8 @@
             <form id="contactForm" onsubmit="saveContact(event)">
                 <input type="hidden" id="contactId">
                 <div class="form-grid">
-                    <div class="form-group"><label for="contactFirstName">Cognome *</label><input id="contactFirstName" required placeholder="Nome"></div>
-                    <div class="form-group"><label for="contactLastName">Cognome *</label><input id="contactLastName" required placeholder="Nome"></div>
+                    <div class="form-group"><label for="contactFirstName">Nome *</label><input id="contactFirstName" required placeholder="Nome"></div>
+		    <div class="form-group"><label for="contactLastName">Cognome *</label><input id="contactLastName" required placeholder="Cognome"></div>
                     <div class="form-group"><label for="contactPhone">Telefono</label><input id="contactPhone" type="tel" placeholder="Es. +39 333 1234567"></div>
                     <div class="form-group"><label for="contactDate">Data inserimento</label><input id="contactDate" type="date" required></div>
                     <div class="form-group"><label for="contactRegion">Regione *</label>
@@ -1472,7 +1472,7 @@ function editContact(id) {
     if (!contact) return;
     
     // Separa cognome e nome dal campo intero 'name' salvato nel database
-    const nameParts = (contact.name || '').trim().split(' ');
+    const nameParts = getContactFullName(contact).split(' ');
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '';
 
@@ -1530,6 +1530,37 @@ function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 }
 
+function getContactFullName(contact) {
+    const name = String(contact.name || '').trim();
+
+    const firstName = String(
+        contact.nome ||
+        contact.first_name ||
+        contact.firstName ||
+        contact.Nome ||
+        ''
+    ).trim();
+
+    const lastName = String(
+        contact.cognome ||
+        contact.last_name ||
+        contact.lastName ||
+        contact.Cognome ||
+        ''
+    ).trim();
+
+    // Se esiste già il nominativo completo, lo conserva.
+    // Se manca il cognome, prova a recuperarlo dal campo separato.
+    if (name) {
+        if (lastName && !name.toLowerCase().includes(lastName.toLowerCase())) {
+            return `${name} ${lastName}`;
+        }
+        return name;
+    }
+
+    return `${firstName} ${lastName}`.trim() || 'Contatto Senza Nome';
+}
+
 function typeDotClass(type) {
     return type === 'Arancione' ? 'dot-arancione' : type === 'Giallo' ? 'dot-giallo' : 'dot-rosso';
 }
@@ -1570,7 +1601,7 @@ function renderContacts() {
     const sortBy = document.getElementById('contactSortSelect')?.value || 'appointment';
 
     let filtered = contactsDb.filter(contact => {
-        const text = [contact.name, contact.phone, contact.region, contact.status, ...(contact.communications || []).map(c => c.text)].join(' ').toLowerCase();
+        const text = [getContactFullName(contact), contact.phone, contact.region, contact.status, ...(contact.communications || []).map(c => c.text)].join(' ').toLowerCase();
         return (!search || text.includes(search)) && (!regionFilter || contact.region === regionFilter) && (!statusFilter || contact.status === statusFilter);
     });
 
@@ -1633,8 +1664,7 @@ function renderContacts() {
     list.innerHTML = filtered.map(contact => {
         // Questa riga serve a leggere il nome sia se si chiama 'name' sia se si chiama 'nome' nel database di Supabase
         console.log("Oggetto contatto da Supabase:", contact);
-const rawName = contact.name || contact.nome || contact.Cognome || contact.Nome || contact.first_name || '';
-const displayName = String(rawName).trim() !== '' ? String(rawName).trim() : 'Contatto Senza Nome';
+const displayName = getContactFullName(contact);
         
         const communications = [...(contact.communications || [])].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
         const phoneHtml = contact.phone ? ` · 📞 <a href="tel:${escapeHtml(contact.phone)}" style="color:var(--primary);text-decoration:none;">${escapeHtml(contact.phone)}</a>` : '';
@@ -1698,7 +1728,7 @@ function renderCalendar() {
             .sort((a,b) => a.appointment.localeCompare(b.appointment));
         output += `<div class="calendar-day ${inMonth ? '' : 'other-month'} ${dateKey === today ? 'today' : ''}">
             <div class="calendar-day-number">${date.getDate()}</div>
-            ${events.map(contact => `<button class="calendar-event ${regionEventClass(contact.region)}" title="${escapeHtml(contact.name)} · ${escapeHtml(contact.region)}" onclick="editContact('${contact.id}');showPage('contatti')">${escapeHtml(contact.appointment.slice(11,16))} ${escapeHtml(contact.name)}</button>`).join('')}
+            ${events.map(contact => `<button class="calendar-event ${regionEventClass(contact.region)}" title="${escapeHtml(contact.name)} · ${escapeHtml(contact.region)}" onclick="editContact('${contact.id}');showPage('contatti')">${escapeHtml(contact.appointment.slice(11,16))} ${escapeHtml(getContactFullName(contact))}</button>`).join('')}
         </div>`;
     }
     grid.innerHTML = output;
@@ -1707,7 +1737,7 @@ function renderCalendar() {
         .sort((a,b) => a.appointment.localeCompare(b.appointment)).slice(0,12);
     const upcomingEl = document.getElementById('upcomingAppointments');
     upcomingEl.innerHTML = upcoming.length ? upcoming.map(c => `<div class="contact-item">
-        <div class="contact-top"><strong><i class="type-dot" style="background:${({Basilicata:'#c4a5fa',Calabria:'#4ade80',Puglia:'#60a5fa',Sicilia:'#fb923c'})[c.region] || '#94a3b8'}"></i>${escapeHtml(c.name)}</strong><span>${escapeHtml(formatItalianDateTime(c.appointment))}</span></div>
+        <div class="contact-top"><strong><i class="type-dot" style="background:${({Basilicata:'#c4a5fa',Calabria:'#4ade80',Puglia:'#60a5fa',Sicilia:'#fb923c'})[c.region] || '#94a3b8'}"></i>${escapeHtml(getContactFullName(c))}</strong><span>${escapeHtml(formatItalianDateTime(c.appointment))}</span></div>
         <div class="contact-meta">${escapeHtml(c.region)} ${c.phone ? '· 📞 ' + escapeHtml(c.phone) : ''} · ${escapeHtml(c.status || '')}</div>
         <div class="contact-actions">
             <button class="btn btn-sm" onclick="showPage('contatti');editContact('${c.id}')">Apri contatto</button>
