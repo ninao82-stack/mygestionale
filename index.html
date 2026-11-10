@@ -1449,6 +1449,8 @@ function saveContact(event) {
         contactsDb.unshift(contact);
     }
     contact.name = name;
+    contact.nome = firstName;
+    contact.cognome = lastName;
     contact.phone = phone;
     contact.date = date;
     contact.region = region;
@@ -1472,9 +1474,9 @@ function editContact(id) {
     if (!contact) return;
     
     // Separa cognome e nome dal campo intero 'name' salvato nel database
-    const nameParts = getContactFullName(contact).split(' ');
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.slice(1).join(' ') || '';
+    const nameParts = getContactNameParts(contact);
+    const firstName = nameParts.firstName;
+    const lastName = nameParts.lastName;
 
     document.getElementById('contactId').value = contact.id;
     document.getElementById('contactFirstName').value = firstName;
@@ -1528,6 +1530,52 @@ function deleteCommunication(contactId, communicationId) {
 
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+}
+
+function getContactNameParts(contact) {
+    const rawName = String(contact.name || '').trim();
+
+    let firstName = String(
+        contact.nome ||
+        contact.first_name ||
+        contact.firstName ||
+        contact.Nome ||
+        ''
+    ).trim();
+
+    let lastName = String(
+        contact.cognome ||
+        contact.last_name ||
+        contact.lastName ||
+        contact.Cognome ||
+        ''
+    ).trim();
+
+    // Recupera i dati dal vecchio campo nominativo completo
+    if (!firstName && rawName) {
+        if (lastName && rawName.toLowerCase().endsWith(lastName.toLowerCase())) {
+            firstName = rawName.slice(0, -lastName.length).trim();
+        } else {
+            const parts = rawName.split(/\s+/);
+            firstName = parts.shift() || '';
+            if (!lastName) lastName = parts.join(' ');
+        }
+    }
+
+    // Se il nome è presente ma il cognome è ancora nel campo completo
+    if (firstName && !lastName && rawName) {
+        const remaining = rawName.slice(firstName.length).trim();
+        if (remaining) lastName = remaining;
+    }
+
+    return { firstName, lastName };
+}
+
+function getContactFullName(contact) {
+    const parts = getContactNameParts(contact);
+    return `${parts.firstName} ${parts.lastName}`.trim() ||
+        String(contact.name || '').trim() ||
+        'Contatto senza nome';
 }
 
 function getContactFullName(contact) {
@@ -1643,12 +1691,12 @@ function renderContacts() {
         } else if (sortBy === 'date') {
             return (b.date || '').localeCompare(a.date || '');
         } else if (sortBy === 'lastname') {
-            const nameA = getNames(a.name);
-            const nameB = getNames(b.name);
+            const nameA = getContactNameParts(a);
+	    const nameB = getContactNameParts(b);
             return nameA.lastName.localeCompare(nameB.lastName, 'it', { sensitivity: 'base' });
         } else if (sortBy === 'firstname') {
-            const nameA = getNames(a.name);
-            const nameB = getNames(b.name);
+            const nameA = getContactNameParts(a);
+	    const nameB = getContactNameParts(b);
             return nameA.firstName.localeCompare(nameB.firstName, 'it', { sensitivity: 'base' });
         } else if (sortBy === 'status') {
             return (a.status || '').localeCompare(b.status || '', 'it', { sensitivity: 'base' });
@@ -1728,7 +1776,7 @@ function renderCalendar() {
             .sort((a,b) => a.appointment.localeCompare(b.appointment));
         output += `<div class="calendar-day ${inMonth ? '' : 'other-month'} ${dateKey === today ? 'today' : ''}">
             <div class="calendar-day-number">${date.getDate()}</div>
-            ${events.map(contact => `<button class="calendar-event ${regionEventClass(contact.region)}" title="${escapeHtml(contact.name)} · ${escapeHtml(contact.region)}" onclick="editContact('${contact.id}');showPage('contatti')">${escapeHtml(contact.appointment.slice(11,16))} ${escapeHtml(getContactFullName(contact))}</button>`).join('')}
+            ${events.map(contact => `<button class="calendar-event ${regionEventClass(contact.region)}" title="${escapeHtml(getContactFullName(contact))} · ${escapeHtml(contact.region)}" onclick="showPage('contatti');editContact('${contact.id}')">${escapeHtml(contact.appointment.slice(11,16))} - ${escapeHtml(getContactFullName(contact))}</button>`).join('')}· ${escapeHtml(contact.region)}" onclick="editContact('${contact.id}');showPage('contatti')">${escapeHtml(contact.appointment.slice(11,16))} ${escapeHtml(getContactFullName(contact))}</button>`).join('')}
         </div>`;
     }
     grid.innerHTML = output;
