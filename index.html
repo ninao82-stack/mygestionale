@@ -604,18 +604,18 @@ async function loadDataFromSupabase() {
         if (diplomiError) throw diplomiError;
 
         contactsDb = contactsData || [];
-	db = diplomiData || [];
+        db = diplomiData || [];
 
-// Normalizza i dati dei contatti senza eliminare i campi originali
-contactsDb = contactsDb.map(contact => ({
-    ...contact,
-    name: contact.name || contact.full_name || contact.fullName ||
-          `${contact.first_name || contact.firstName || contact.nome || ''} ${contact.last_name || contact.lastName || contact.cognome || ''}`.trim(),
-    phone: contact.phone || '',
-    communications: Array.isArray(contact.communications)
-        ? contact.communications
-        : []
-}));
+        // Normalizza i dati salvaguardando il nome reale
+        contactsDb = contactsDb.map(contact => {
+            const resolvedName = getContactName(contact);
+            return {
+                ...contact,
+                name: resolvedName,
+                phone: contact.phone || '',
+                communications: Array.isArray(contact.communications) ? contact.communications : []
+            };
+        });
 
 // Il database è pronto solo dopo aver letto entrambe le tabelle
 cloudReady = true;
