@@ -1776,7 +1776,9 @@ function renderCalendar() {
             .sort((a,b) => a.appointment.localeCompare(b.appointment));
         output += `<div class="calendar-day ${inMonth ? '' : 'other-month'} ${dateKey === today ? 'today' : ''}">
             <div class="calendar-day-number">${date.getDate()}</div>
-            ${events.map(contact => `<button class="calendar-event ${regionEventClass(contact.region)}" title="${escapeHtml(getContactFullName(contact))} · ${escapeHtml(contact.region)}" onclick="showPage('contatti');editContact('${contact.id}')">${escapeHtml(contact.appointment.slice(11,16))} - ${escapeHtml(getContactFullName(contact))}</button>`).join('')}· ${escapeHtml(contact.region)}" onclick="editContact('${contact.id}');showPage('contatti')">${escapeHtml(contact.appointment.slice(11,16))} ${escapeHtml(getContactFullName(contact))}</button>`).join('')}
+            
+            ${events.map(contact => `<button class="calendar-event ${regionEventClass(contact.region)}" title="${escapeHtml(getContactFullName(contact))} · ${escapeHtml(contact.region)}" onclick="showPage('contatti');editContact('${contact.id}')">${escapeHtml(contact.appointment.slice(11,16))} - ${escapeHtml(getContactFullName(contact))}</button>`).join('')}
+
         </div>`;
     }
     grid.innerHTML = output;
