@@ -146,6 +146,10 @@
     <button class="nav-btn" id="nav-contatti" onclick="showPage('contatti')">👥 Contatti</button>
     <button class="nav-btn" id="nav-diplomi" onclick="showPage('diplomi')">🎓 Diplomi</button>
     <button class="nav-btn" id="nav-calendario" onclick="showPage('calendario')">📅 Calendario</button>
+    <!-- INDICATORE STATO -->
+    <div id="dbStatusBadge" style="margin-left:auto; font-size:12px; font-weight:600; padding:6px 12px; border-radius:20px; background:#fef3c7; color:#92400e;">
+        🟡 Connessione DB in corso...
+    </div>
 </nav>
 <div class="container">
     <section id="page-home" class="page-section active">
@@ -532,40 +536,35 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- FUNZIONE DI CARICAMENTO CLOUD ---
 async function loadDataFromSupabase() {
-    const statusBadge = document.getElementById('cloudStatusBadge');
-    if (statusBadge) {
-        statusBadge.style.background = '#fef3c7';
-        statusBadge.style.color = '#92400e';
-        statusBadge.innerHTML = '🟡 Connessione DB in corso...';
-    }
-
+    const statusBadge = document.getElementById('dbStatusBadge');
     try {
         const { data: contactsData, error: contactsError } = await supabaseClient.from('contatti').select('*');
-        if (!contactsError && contactsData) {
+        if (!contactsError && contactsData && contactsData.length > 0) {
             contactsDb = contactsData;
             localStorage.setItem(contactStorageKey, JSON.stringify(contactsDb));
         }
 
         const { data: diplomiData, error: diplomiError } = await supabaseClient.from('diplomi').select('*');
-        if (!diplomiError && diplomiData) {
+        if (!diplomiError && diplomiData && diplomiData.length > 0) {
             db = diplomiData;
             localStorage.setItem('gestionale_db', JSON.stringify(db));
         }
 
+	populateDropdowns();
+        updateStatistics();
+        updateHomeCounters();
+
         if (statusBadge) {
             statusBadge.style.background = '#dcfce7';
             statusBadge.style.color = '#166534';
-            statusBadge.innerHTML = '🟢 Database Connesso';
+            statusBadge.innerHTML = '🟢 Supabase Connesso';
         }
 
-        // AGGIORNAMENTO DI TUTTA L'INTERFACCIA E DELLE TENDINE
-        populateDropdowns();
-        updateStatistics();
         renderContacts();
         renderCalendar();
         renderTable();
+        updateStatistics();
         updateHomeCounters();
-
     } catch (err) {
         console.warn('Errore Supabase:', err);
         if (statusBadge) {
@@ -1699,29 +1698,6 @@ window.onload = function() {
     populateDropdowns();
     updateStatistics();
 
-// --- FUNZIONE PER GESTIRE IL BADGE DI STATO ---
-function updateCloudStatus(status, message) {
-    const badge = document.getElementById('cloudStatusBadge') || document.getElementById('dbStatusBadge');
-    if (!badge) return;
-
-    const styles = {
-        checking: { background: '#fef3c7', color: '#92400e', text: '🟡 VERIFICA IN CORSO' },
-        connected: { background: '#dcfce7', color: '#166534', text: '🟢 DATABASE CONNESSO' },
-        error: { background: '#fee2e2', color: '#991b1b', text: '🔴 ERRORE CONNESSIONE' }
-    };
-
-    const current = styles[status] || styles.checking;
-    badge.style.background = current.background;
-    badge.style.color = current.color;
-    badge.innerHTML = current.text;
-    badge.title = message || '';
-}
-
-// --- LA TUA FUNZIONE ESISTENTE LOAD DATI ---
-async function loadDataFromSupabase() {
-    ...
-}
-
     // Poi scarica e sincronizza da Supabase
     loadDataFromSupabase();
     resetContactForm();
@@ -1730,20 +1706,5 @@ async function loadDataFromSupabase() {
     updateHomeCounters();
 };
 </script>
-    <div id="cloudStatusBadge" style="
-    position: fixed;
-    top: 15px;
-    right: 20px;
-    z-index: 99999;
-    padding: 6px 14px;
-    border-radius: 20px;
-    background: #fef3c7;
-    color: #92400e;
-    font-size: 11px;
-    font-weight: 700;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-">
-    🟡 VERIFICA DATABASE...
-</div>
 </body>
 </html>
