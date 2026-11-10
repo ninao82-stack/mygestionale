@@ -417,8 +417,8 @@
         <table>
             <thead>
                 <tr>
-                    <th onclick="sortTable('nome')">NOME ↕</th>
-		    <th onclick="sortTable('cognome')">COGNOME ↕</th>
+                    <th onclick="sortTable('cognome')">COGNOME ↕</th>
+		    <th onclick="sortTable('nome')">NOME ↕</th>
                     <th onclick="sortTable('diploma')">DIPLOMA ↕</th>
                     <th onclick="sortTable('regione')">REGIONE ↕</th>
                     <th onclick="sortTable('data')">DATA ↕</th>
@@ -449,8 +449,8 @@
             <form id="contactForm" onsubmit="saveContact(event)">
                 <input type="hidden" id="contactId">
                 <div class="form-grid">
-                    <div class="form-group"><label for="contactFirstName">Nome *</label><input id="contactFirstName" required placeholder="Nome"></div>
-                    <div class="form-group"><label for="contactLastName">Cognome *</label><input id="contactLastName" required placeholder="Cognome"></div>
+                    <div class="form-group"><label for="contactFirstName">Cognome *</label><input id="contactFirstName" required placeholder="Nome"></div>
+                    <div class="form-group"><label for="contactLastName">Cognome *</label><input id="contactLastName" required placeholder="Nome"></div>
                     <div class="form-group"><label for="contactPhone">Telefono</label><input id="contactPhone" type="tel" placeholder="Es. +39 333 1234567"></div>
                     <div class="form-group"><label for="contactDate">Data inserimento</label><input id="contactDate" type="date" required></div>
                     <div class="form-group"><label for="contactRegion">Regione *</label>
@@ -547,7 +547,7 @@ async function loadDataFromSupabase() {
 
         const { data: diplomiData, error: diplomiError } = await supabaseClient.from('diplomi').select('*');
         if (!diplomiError && diplomiData) {
-            // TRASFORMAZIONE:separa il campo 'nome' unito in nome e cognome separati
+            // CORRETTO: assegna correttamente il primo pezzo al nome e il secondo al cognome
             db = diplomiData.map(item => {
                 const rawName = String(item.nome || '').trim();
                 const spaceIndex = rawName.indexOf(' ');
@@ -564,7 +564,6 @@ async function loadDataFromSupabase() {
                     ...item,
                     nome: nomeDiviso,
                     cognome: cognomeDiviso,
-                    // Manteniamo anche un campo completo per comodità se serve nella tabella
                     nomeCompleto: rawName 
                 };
             });
@@ -1049,8 +1048,8 @@ function renderTable() {
         const realIndex = db.indexOf(item);
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td><strong>${item.nome || ''}</strong></td>
-            <td>${item.cognome || ''}</td>
+            <td><strong>${item.cognome || ''}</strong></td>
+            <td>${item.nome || ''}</td>
 	    <td>${item.diploma || ''}</td>
             <td>${item.regione || ''}</td>
             <td>${item.data || ''}</td>
@@ -1411,7 +1410,7 @@ function saveContact(event) {
     const note = document.getElementById('contactNote').value.trim();
 
     if (!firstName || !lastName || !date || !region) {
-        alert('Compila nome, cognome, data e regione.');
+        alert('Compila cognome, nome, data e regione.');
         return;
     }
 
@@ -1448,7 +1447,7 @@ function editContact(id) {
     const contact = contactsDb.find(item => item.id === id);
     if (!contact) return;
     
-    // Separa nome e cognome dal campo intero 'name' salvato nel database
+    // Separa cognome e nome dal campo intero 'name' salvato nel database
     const nameParts = (contact.name || '').trim().split(' ');
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '';
@@ -1610,7 +1609,7 @@ function renderContacts() {
     list.innerHTML = filtered.map(contact => {
         // Questa riga serve a leggere il nome sia se si chiama 'name' sia se si chiama 'nome' nel database di Supabase
         console.log("Oggetto contatto da Supabase:", contact);
-const rawName = contact.name || contact.nome || contact.Nome || contact.Cognome || contact.first_name || '';
+const rawName = contact.name || contact.nome || contact.Cognome || contact.Nome || contact.first_name || '';
 const displayName = String(rawName).trim() !== '' ? String(rawName).trim() : 'Contatto Senza Nome';
         
         const communications = [...(contact.communications || [])].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
