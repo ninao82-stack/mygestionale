@@ -598,8 +598,8 @@ async function loadDataFromSupabase() {
 
 let tempImportedData = [];
 let currentStatsTab = 'anno';
-let currentSortColumn = null;
-let currentSortDirection = 'asc';
+let currentSortColumn = 'data';
+let currentSortDirection = 'desc';
 
 const nomiMesi = [
     "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", 
@@ -988,6 +988,32 @@ function sortTable(column) {
     renderTable();
 }
 
+function getSortableDate(value) {
+    if (!value) return '';
+
+    const date = String(value).trim();
+
+    // Formato YYYY-MM-DD
+    let match = date.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+
+    if (match) {
+        return match[1] +
+            match[2].padStart(2, '0') +
+            match[3].padStart(2, '0');
+    }
+
+    // Formato GG/MM/AAAA
+    match = date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+
+    if (match) {
+        return match[3] +
+            match[2].padStart(2, '0') +
+            match[1].padStart(2, '0');
+    }
+
+    return '';
+}
+
 function renderTable() {
     const searchVal = (document.getElementById('search').value || '').toLowerCase();
     const annoVal = document.getElementById('filterAnno').value;
@@ -1027,11 +1053,9 @@ function renderTable() {
                 valA = extractYear(a.data);
                 valB = extractYear(b.data);
             } else if (currentSortColumn === 'data') {
-                const partsA = (a.data || '').split('/');
-                valA = partsA.length === 3 ? `${partsA[2]}${partsA[1]}${partsA[0]}` : (a.data || '');
-                const partsB = (b.data || '').split('/');
-                valB = partsB.length === 3 ? `${partsB[2]}${partsB[1]}${partsB[0]}` : (b.data || '');
-            } else {
+   		valA = getSortableDate(a.data);
+    		valB = getSortableDate(b.data);
+	    } else {
                 valA = String(a[currentSortColumn] || '').toLowerCase();
                 valB = String(b[currentSortColumn] || '').toLowerCase();
             }
