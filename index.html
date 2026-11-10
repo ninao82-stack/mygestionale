@@ -1412,28 +1412,13 @@ function resetContactForm() {
     document.getElementById('contactFormTitle').textContent = 'Aggiungi contatto';
 }
 
-async function deleteContact(id) {
-    const contact = contactsDb.find(item => item.id === id);
-    if (!contact) return;
-    if (!confirm(`Vuoi eliminare il contatto "${contact.name}" e tutte le sue comunicazioni?`)) return;
+async function saveContact(event) {
+    event.preventDefault();
     
-    contactsDb = contactsDb.filter(item => item.id !== id);
-    persistContacts();
-
-    // Eliminazione anche dal database Supabase
-    try {
-        const { error } = await supabaseClient
-            .from('contatti')
-            .delete()
-            .eq('id', id);
-            
-        if (error) {
-            console.error("Errore eliminazione Supabase:", error);
-        }
-    } catch (err) {
-        console.error("Eccezione Supabase:", err);
+    const isOnline = navigator.onLine;
+    if (!isOnline) {
+        alert('⚠️ Attenzione: Connessione di rete assente o instabile. Il contatto verrà comunque salvato nell\'archivio locale di sicurezza.');
     }
-}
 
     const id = document.getElementById('contactId').value;
     const firstName = document.getElementById('contactFirstName').value.trim();
@@ -1474,13 +1459,22 @@ async function deleteContact(id) {
     if (note) contact.communications.push({ id: String(Date.now()) + Math.random(), text: note, timestamp: new Date().toISOString() });
 
     persistContacts();
+
+    try {
+        const { error } = await supabaseClient
+            .from('contatti')
+            .upsert([contact]);
+            
+        if (error) {
+            console.error("Errore salvataggio Supabase:", error);
+            alert("Contatto salvato in locale, ma c'è stato un problema con la sincronizzazione su Supabase: " + error.message);
+        }
+    } catch (err) {
+        console.error("Eccezione Supabase:", err);
+    }
+
     resetContactForm();
     toggleContactForm();
-    
-    // Messaggio di conferma con feedback di stato connessione
-    if (isOnline) {
-        // Operazione completata con successo online
-    }
 }
 
 function editContact(id) {
