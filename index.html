@@ -1431,7 +1431,7 @@ function resetContactForm() {
     document.getElementById('contactFormTitle').textContent = 'Aggiungi contatto';
 }
 
-async (async function saveContact(event) {
+async function saveContact(event) {
     event.preventDefault();
     
     // Verifica della connessione (Falsa connessione / controllo online con fallback di avviso)
@@ -1538,8 +1538,8 @@ function editCommunication(contactId, communicationId) {
     const newText = prompt('Modifica la nota:', comm.text);
     if (newText !== null && newText.trim() !== '') {
         comm.text = newText.trim();
-    upsertContactCloud(contact);    
-    persistContacts();
+        persistContacts();
+        upsertContactCloud(contact);
     }
 }
 
@@ -1547,8 +1547,8 @@ function deleteCommunication(contactId, communicationId) {
     const contact = contactsDb.find(item => item.id === contactId);
     if (!contact || !confirm('Eliminare questa comunicazione?')) return;
     contact.communications = contact.communications.filter(item => item.id !== communicationId);
-    upsertContactCloud(contact);
     persistContacts();
+    upsertContactCloud(contact);
 }
 
 function escapeHtml(value) {
@@ -1734,7 +1734,7 @@ function renderContacts() {
 
     list.innerHTML = filtered.map(contact => {
         // Questa riga serve a leggere il nome sia se si chiama 'name' sia se si chiama 'nome' nel database di Supabase
-        const displayName = getContactFullName(contact);
+const displayName = getContactFullName(contact);
         
         const communications = [...(contact.communications || [])].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
         const phoneHtml = contact.phone ? ` · 📞 <a href="tel:${escapeHtml(contact.phone)}" style="color:var(--primary);text-decoration:none;">${escapeHtml(contact.phone)}</a>` : '';
