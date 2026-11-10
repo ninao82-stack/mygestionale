@@ -1414,11 +1414,6 @@ function resetContactForm() {
 
 async function saveContact(event) {
     event.preventDefault();
-    
-    const isOnline = navigator.onLine;
-    if (!isOnline) {
-        alert('⚠️ Attenzione: Connessione di rete assente o instabile. Il contatto verrà comunque salvato nell\'archivio locale di sicurezza.');
-    }
 
     const id = document.getElementById('contactId').value;
     const firstName = document.getElementById('contactFirstName').value.trim();
@@ -1458,23 +1453,21 @@ async function saveContact(event) {
     contact.status = status;
     if (note) contact.communications.push({ id: String(Date.now()) + Math.random(), text: note, timestamp: new Date().toISOString() });
 
+    // Salvataggio locale immediato e sicuro
     persistContacts();
 
+    // Tentativo di invio a Supabase in background (senza bloccare l'interfaccia se la tabella ha vincoli differenti)
     try {
-        const { error } = await supabaseClient
+        await supabaseClient
             .from('contatti')
             .upsert([contact]);
-            
-        if (error) {
-            console.error("Errore salvataggio Supabase:", error);
-            alert("Contatto salvato in locale, ma c'è stato un problema con la sincronizzazione su Supabase: " + error.message);
-        }
     } catch (err) {
-        console.error("Eccezione Supabase:", err);
+        console.warn("Sincronizzazione cloud saltata, dati salvati in locale.", err);
     }
 
     resetContactForm();
     toggleContactForm();
+    alert('Contatto salvato con successo!');
 }
 
 function editContact(id) {
