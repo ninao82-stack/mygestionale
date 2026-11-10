@@ -146,10 +146,6 @@
     <button class="nav-btn" id="nav-contatti" onclick="showPage('contatti')">👥 Contatti</button>
     <button class="nav-btn" id="nav-diplomi" onclick="showPage('diplomi')">🎓 Diplomi</button>
     <button class="nav-btn" id="nav-calendario" onclick="showPage('calendario')">📅 Calendario</button>
-    <!-- INDICATORE STATO -->
-    <div id="dbStatusBadge" style="margin-left:auto; font-size:12px; font-weight:600; padding:6px 12px; border-radius:20px; background:#fef3c7; color:#92400e;">
-        🟡 Connessione DB in corso...
-    </div>
 </nav>
 <div class="container">
     <section id="page-home" class="page-section active">
@@ -536,42 +532,45 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- FUNZIONE DI CARICAMENTO CLOUD ---
 async function loadDataFromSupabase() {
-    const statusBadge = document.getElementById('dbStatusBadge');
+    updateCloudStatus('checking');
+
     try {
         const { data: contactsData, error: contactsError } = await supabaseClient.from('contatti').select('*');
-        if (!contactsError && contactsData && contactsData.length > 0) {
-            contactsDb = contactsData;
-            localStorage.setItem(contactStorageKey, JSON.stringify(contactsDb));
-        }
+        if (contactsError) throw contactsError;
 
         const { data: diplomiData, error: diplomiError } = await supabaseClient.from('diplomi').select('*');
-        if (!diplomiError && diplomiData && diplomiData.length > 0) {
-            db = diplomiData;
-            localStorage.setItem('gestionale_db', JSON.stringify(db));
-        }
+        if (diplomiError) throw diplomiError;
 
-	populateDropdowns();
-        updateStatistics();
-        updateHomeCounters();
+        contactsDb = contactsData || [];
+        db = diplomiData || [];
 
-        if (statusBadge) {
-            statusBadge.style.background = '#dcfce7';
-            statusBadge.style.color = '#166534';
-            statusBadge.innerHTML = '🟢 Supabase Connesso';
-        }
+        // Normalizzazione contatti per salvaguardare i nomi
+        contactsDb = contactsDb.map(contact => ({
+            ...contact,
+            name: getContactName(contact),
+            phone: contact.phone || '',
+            communications: Array.isArray(contact.communications) ? contact.communications : []
+        }));
 
+        cloudReady = true;
+
+        localStorage.setItem(contactStorageKey, JSON.stringify(contactsDb));
+        localStorage.setItem('gestionale_db', JSON.stringify(db));
+
+        // Imposta il badge unico in alto su VERDE
+        updateCloudStatus('connected', 'Entrambe le tabelle sono state lette correttamente da Supabase.');
+
+        // Popola tendine, filtri, tabella e statistiche
+        populateDropdowns();
         renderContacts();
         renderCalendar();
         renderTable();
         updateStatistics();
         updateHomeCounters();
+
     } catch (err) {
-        console.warn('Errore Supabase:', err);
-        if (statusBadge) {
-            statusBadge.style.background = '#fee2e2';
-            statusBadge.style.color = '#991b1b';
-            statusBadge.innerHTML = '🔴 Errore Connessione';
-        }
+        console.error('Errore Supabase:', err);
+        updateCloudStatus('error', err.message || 'Errore di connessione o autorizzazione.');
     }
 }
 
@@ -1706,5 +1705,20 @@ window.onload = function() {
     updateHomeCounters();
 };
 </script>
+    <div id="cloudStatusBadge" style="
+    position: fixed;
+    top: 15px;
+    right: 20px;
+    z-index: 99999;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 11px;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+">
+    🟡 VERIFICA DATABASE...
+</div>
 </body>
 </html>
