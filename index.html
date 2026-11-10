@@ -1400,6 +1400,25 @@ function persistContacts() {
     updateHomeCounters();
 }
 
+async function upsertContactCloud(contact) {
+    const payload = { ...contact, appointment: contact.appointment || null };
+    const { error } = await supabaseClient.from('contatti').upsert(payload);
+    if (error) {
+        console.error('Errore salvataggio Supabase:', error);
+        alert('Salvataggio su cloud fallito: ' + error.message);
+        return false;
+    }
+    return true;
+}
+
+async function deleteContactCloud(id) {
+    const { error } = await supabaseClient.from('contatti').delete().eq('id', id);
+    if (error) {
+        console.error('Errore eliminazione Supabase:', error);
+        alert('Eliminazione su cloud fallita: ' + error.message);
+    }
+}
+
 function resetContactForm() {
     document.getElementById('contactForm').reset();
     document.getElementById('contactId').value = '';
@@ -1412,8 +1431,14 @@ function resetContactForm() {
     document.getElementById('contactFormTitle').textContent = 'Aggiungi contatto';
 }
 
-async function saveContact(event) {
+async (async function saveContact(event) {
     event.preventDefault();
+    
+    // Verifica della connessione (Falsa connessione / controllo online con fallback di avviso)
+    const isOnline = navigator.onLine;
+    if (!isOnline) {
+        alert('⚠️ Attenzione: Connessione di rete assente o instabile. Il contatto verrà comunque salvato nell\'archivio locale di sicurezza.');
+    }
 
     const id = document.getElementById('contactId').value;
     const firstName = document.getElementById('contactFirstName').value.trim();
@@ -1439,13 +1464,9 @@ async function saveContact(event) {
     }
 
     if (!contact) {
-        contact = { 
-            id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random(), 
-            communications: [] 
-        };
+        contact = { id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random(), communications: [] };
         contactsDb.unshift(contact);
     }
-
     contact.name = name;
     contact.nome = firstName;
     contact.cognome = lastName;
@@ -1455,54 +1476,24 @@ async function saveContact(event) {
     contact.appointment = appointment;
     contact.type = type;
     contact.status = status;
-    
-    if (note) {
-        contact.communications.push({ 
-            id: String(Date.now()) + Math.random(), 
-            text: note, 
-            timestamp: new Date().toISOString() 
-        });
-    }
+    if (note) contact.communications.push({ id: String(Date.now()) + Math.random(), text: note, timestamp: new Date().toISOString() });
 
-    // 1. Salvataggio effettivo su Supabase (Database Cloud)
-    try {
-        const { error } = await supabaseClient
-            .from('contatti')
-            .upsert([{
-                id: contact.id,
-                name: contact.name,
-                nome: contact.nome,
-                cognome: contact.cognome,
-                phone: contact.phone,
-                date: contact.date,
-                region: contact.region,
-                appointment: contact.appointment || null,
-                type: contact.type,
-                status: contact.status,
-                communications: contact.communications
-            }]);
-
-        if (error) {
-            console.error("Errore di Supabase durante il salvataggio:", error);
-            alert("Errore del database Supabase: " + error.message);
-            return;
-        }
-    } catch (err) {
-        console.error("Eccezione di rete/Supabase:", err);
-        alert("Impossibile contattare il database Supabase. Controlla la connessione.");
-        return;
-    }
-
-    // 2. Aggiornamento locale e interfaccia
     persistContacts();
+    await upsertContactCloud(contact);
     resetContactForm();
     toggleContactForm();
+    
+    // Messaggio di conferma con feedback di stato connessione
+    if (isOnline) {
+        // Operazione completata con successo online
+    }
 }
 
 function editContact(id) {
     const contact = contactsDb.find(item => item.id === id);
     if (!contact) return;
     
+    // Separa cognome e nome dal campo intero 'name' salvato nel database
     const nameParts = getContactNameParts(contact);
     const firstName = nameParts.firstName;
     const lastName = nameParts.lastName;
@@ -1520,6 +1511,7 @@ function editContact(id) {
     
     document.getElementById('contactFormTitle').textContent = 'Modifica contatto / aggiungi comunicazione';
     
+    // Apre automaticamente il form a scomparsa in alto se è chiuso
     const formCard = document.getElementById('contactFormCard');
     if (formCard.style.display !== 'block') {
         formCard.style.display = 'block';
@@ -1529,31 +1521,12 @@ function editContact(id) {
     document.getElementById('contactFirstName').focus();
 }
 
-async function deleteContact(id) {
+function deleteContact(id) {
     const contact = contactsDb.find(item => item.id === id);
     if (!contact) return;
     if (!confirm(`Vuoi eliminare il contatto "${contact.name}" e tutte le sue comunicazioni?`)) return;
-
-    // 1. Eliminazione dal database Supabase
-    try {
-        const { error } = await supabaseClient
-            .from('contatti')
-            .delete()
-            .eq('id', id);
-
-        if (error) {
-            console.error("Errore di Supabase durante l'eliminazione:", error);
-            alert("Errore durante l'eliminazione dal database: " + error.message);
-            return;
-        }
-    } catch (err) {
-        console.error("Eccezione di rete/Supabase:", err);
-        alert("Impossibile connettersi a Supabase per l'eliminazione.");
-        return;
-    }
-
-    // 2. Rimozione locale e aggiornamento UI
     contactsDb = contactsDb.filter(item => item.id !== id);
+    deleteContactCloud(id);
     persistContacts();
 }
 
@@ -1565,7 +1538,8 @@ function editCommunication(contactId, communicationId) {
     const newText = prompt('Modifica la nota:', comm.text);
     if (newText !== null && newText.trim() !== '') {
         comm.text = newText.trim();
-        persistContacts();
+    upsertContactCloud(contact);    
+    persistContacts();
     }
 }
 
@@ -1573,6 +1547,7 @@ function deleteCommunication(contactId, communicationId) {
     const contact = contactsDb.find(item => item.id === contactId);
     if (!contact || !confirm('Eliminare questa comunicazione?')) return;
     contact.communications = contact.communications.filter(item => item.id !== communicationId);
+    upsertContactCloud(contact);
     persistContacts();
 }
 
@@ -1759,8 +1734,7 @@ function renderContacts() {
 
     list.innerHTML = filtered.map(contact => {
         // Questa riga serve a leggere il nome sia se si chiama 'name' sia se si chiama 'nome' nel database di Supabase
-        console.log("Oggetto contatto da Supabase:", contact);
-const displayName = getContactFullName(contact);
+        const displayName = getContactFullName(contact);
         
         const communications = [...(contact.communications || [])].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
         const phoneHtml = contact.phone ? ` · 📞 <a href="tel:${escapeHtml(contact.phone)}" style="color:var(--primary);text-decoration:none;">${escapeHtml(contact.phone)}</a>` : '';
