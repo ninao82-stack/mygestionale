@@ -8,6 +8,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Google Identity Services (accesso Google per Calendar) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 	<style>
         :root {
             --primary: #2563eb;
@@ -1478,6 +1480,7 @@ async function saveContact(event) {
     contact.status = status;
     if (note) contact.communications.push({ id: String(Date.now()) + Math.random(), text: note, timestamp: new Date().toISOString() });
 
+    await syncContactToGoogle(contact);
     persistContacts();
     await upsertContactCloud(contact);
     resetContactForm();
@@ -1525,6 +1528,14 @@ function deleteContact(id) {
     const contact = contactsDb.find(item => item.id === id);
     if (!contact) return;
     if (!confirm(`Vuoi eliminare il contatto "${contact.name}" e tutte le sue comunicazioni?`)) return;
+    if (contact.gcal_event_id && GOOGLE_CLIENT_ID) {
+        getGoogleToken(contact.gcal_region || contact.region)
+            .then(token => gcalRequest('DELETE', token, contact.gcal_event_id))
+            .catch(err => {
+                console.error('Errore eliminazione evento Google:', err);
+                alert('Contatto eliminato, ma l\'evento su Google Calendar va eliminato a mano: ' + err.message);
+            });
+    }
     contactsDb = contactsDb.filter(item => item.id !== id);
     deleteContactCloud(id);
     persistContacts();
@@ -1642,6 +1653,107 @@ function formatItalianDateTime(value) {
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString('it-IT', { dateStyle:'short', timeStyle:'short' });
 }
 
+// --- SINCRONIZZAZIONE AUTOMATICA GOOGLE CALENDAR (un account Google per regione) ---
+// 1) Incolla qui l'ID client OAuth (Google Auth Platform > Client > "ID client", finisce con .apps.googleusercontent.com)
+const GOOGLE_CLIENT_ID = '';
+// 2) Inserisci l'email dell'account Google di ciascuna regione (serve a proporre l'account giusto al login)
+const REGION_ACCOUNTS = {
+    Basilicata: '',
+    Calabria: '',
+    Puglia: '',
+    Sicilia: ''
+};
+const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+const gcalTokens = {};
+
+function getGoogleToken(region) {
+    return new Promise((resolve, reject) => {
+        const cached = gcalTokens[region];
+        if (cached && cached.exp > Date.now() + 60000) return resolve(cached.token);
+        if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+            return reject(new Error('Libreria Google non caricata. Controlla la connessione.'));
+        }
+        const client = google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CLIENT_ID,
+            scope: GCAL_SCOPE,
+            hint: REGION_ACCOUNTS[region] || '',
+            callback: (resp) => {
+                if (resp.error) return reject(new Error(resp.error_description || resp.error));
+                gcalTokens[region] = { token: resp.access_token, exp: Date.now() + (Number(resp.expires_in) || 3600) * 1000 };
+                resolve(resp.access_token);
+            },
+            error_callback: (err) => reject(new Error((err && err.type) || 'Accesso Google annullato'))
+        });
+        client.requestAccessToken({ prompt: '' });
+    });
+}
+
+function gcalFormatLocal(d) {
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00`;
+}
+
+function buildGcalEvent(contact) {
+    const start = new Date(String(contact.appointment).slice(0, 16));
+    const end = new Date(start.getTime() + 30 * 60000);
+    return {
+        summary: `Appuntamento con ${getContactFullName(contact)} (${contact.region})`,
+        description: `Stato: ${contact.status || 'N/D'}\nTelefono: ${contact.phone || 'N/D'}\nGestito tramite Gestionale.`,
+        start: { dateTime: gcalFormatLocal(start), timeZone: 'Europe/Rome' },
+        end: { dateTime: gcalFormatLocal(end), timeZone: 'Europe/Rome' }
+    };
+}
+
+async function gcalRequest(method, token, eventId, body) {
+    const url = 'https://www.googleapis.com/calendar/v3/calendars/primary/events' + (eventId ? '/' + encodeURIComponent(eventId) : '');
+    const res = await fetch(url, {
+        method,
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+    });
+    if (method === 'DELETE' && (res.status === 404 || res.status === 410)) return null;
+    if (!res.ok) {
+        const t = await res.text();
+        throw new Error('Google Calendar ' + res.status + ': ' + t.slice(0, 200));
+    }
+    return res.status === 204 ? null : res.json();
+}
+
+// Crea, aggiorna o elimina l'evento sul calendario dell'account della regione
+async function syncContactToGoogle(contact) {
+    if (!GOOGLE_CLIENT_ID) return;
+    if (!contact.appointment && !contact.gcal_event_id) return;
+    try {
+        if (contact.gcal_event_id) {
+            const oldRegion = contact.gcal_region || contact.region;
+            if (!contact.appointment || oldRegion !== contact.region) {
+                const oldToken = await getGoogleToken(oldRegion);
+                await gcalRequest('DELETE', oldToken, contact.gcal_event_id);
+                contact.gcal_event_id = null;
+                contact.gcal_region = null;
+            }
+        }
+        if (!contact.appointment) return;
+
+        const token = await getGoogleToken(contact.region);
+        const body = buildGcalEvent(contact);
+        if (contact.gcal_event_id) {
+            try {
+                await gcalRequest('PATCH', token, contact.gcal_event_id, body);
+                return;
+            } catch (e) {
+                if (!/Calendar (404|410)/.test(e.message)) throw e;
+            }
+        }
+        const created = await gcalRequest('POST', token, null, body);
+        contact.gcal_event_id = created.id;
+        contact.gcal_region = contact.region;
+    } catch (err) {
+        console.error('Errore Google Calendar:', err);
+        alert('Il contatto è salvato, ma l\'evento su Google Calendar no: ' + err.message);
+    }
+}
+
 // Funzione per generare il link di sincronizzazione Google Calendar
 function getGoogleCalendarUrl(contact) {
     if (!contact.appointment) return '#';
@@ -1656,10 +1768,10 @@ function getGoogleCalendarUrl(contact) {
         return date.toISOString().replace(/-|:|\.\d\d\d/g, '');
     };
     
-    const text = encodeURIComponent(`Appuntamento con ${contact.name} (${contact.region})`);
+    const text = encodeURIComponent(`Appuntamento con ${getContactFullName(contact)} (${contact.region})`);
     const details = encodeURIComponent(`Stato: ${contact.status || 'N/D'}\nTelefono: ${contact.phone || 'N/D'}\nGestito tramite Gestionale Unificato.`);
     const dates = `${formatGCalDate(startDate)}/${formatGCalDate(endDate)}`;
-    
+
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${dates}&details=${details}`;
 }
 
