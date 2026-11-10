@@ -418,6 +418,7 @@
             <thead>
                 <tr>
                     <th onclick="sortTable('nome')">NOME ↕</th>
+		    <th onclick="sortTable('cognome')">COGNOME ↕</th>
                     <th onclick="sortTable('diploma')">DIPLOMA ↕</th>
                     <th onclick="sortTable('regione')">REGIONE ↕</th>
                     <th onclick="sortTable('data')">DATA ↕</th>
@@ -545,8 +546,29 @@ async function loadDataFromSupabase() {
         }
 
         const { data: diplomiData, error: diplomiError } = await supabaseClient.from('diplomi').select('*');
-        if (!diplomiError && diplomiData && diplomiData.length > 0) {
-            db = diplomiData;
+        if (!diplomiError && diplomiData) {
+            // TRASFORMAZIONE:separa il campo 'nome' unito in nome e cognome separati
+            db = diplomiData.map(item => {
+                const rawName = String(item.nome || '').trim();
+                const spaceIndex = rawName.indexOf(' ');
+                
+                let nomeDiviso = rawName;
+                let cognomeDiviso = '';
+                
+                if (spaceIndex !== -1) {
+                    nomeDiviso = rawName.substring(0, spaceIndex);
+                    cognomeDiviso = rawName.substring(spaceIndex + 1);
+                }
+
+                return {
+                    ...item,
+                    nome: nomeDiviso,
+                    cognome: cognomeDiviso,
+                    // Manteniamo anche un campo completo per comodità se serve nella tabella
+                    nomeCompleto: rawName 
+                };
+            });
+
             localStorage.setItem('gestionale_db', JSON.stringify(db));
         }
 
@@ -1028,7 +1050,8 @@ function renderTable() {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><strong>${item.nome || ''}</strong></td>
-            <td>${item.diploma || ''}</td>
+            <td>${item.cognome || ''}</td>
+	    <td>${item.diploma || ''}</td>
             <td>${item.regione || ''}</td>
             <td>${item.data || ''}</td>
             <td><strong>${extractYear(item.data)}</strong></td>
