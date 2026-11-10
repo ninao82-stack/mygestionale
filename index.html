@@ -1412,7 +1412,7 @@ function resetContactForm() {
     document.getElementById('contactFormTitle').textContent = 'Aggiungi contatto';
 }
 
-function saveContact(event) {
+async function saveContact(event) {
     event.preventDefault();
 
     const id = document.getElementById('contactId').value;
@@ -1439,10 +1439,13 @@ function saveContact(event) {
     }
 
     if (!contact) {
-        contact = { id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random(), communications: [] };
+        contact = { 
+            id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random(), 
+            communications: [] 
+        };
         contactsDb.unshift(contact);
     }
-    
+
     contact.name = name;
     contact.nome = firstName;
     contact.cognome = lastName;
@@ -1452,6 +1455,7 @@ function saveContact(event) {
     contact.appointment = appointment;
     contact.type = type;
     contact.status = status;
+    
     if (note) {
         contact.communications.push({ 
             id: String(Date.now()) + Math.random(), 
@@ -1460,21 +1464,45 @@ function saveContact(event) {
         });
     }
 
-    // Salva in modo permanente nel browser
-    persistContacts();
+    // 1. Salvataggio effettivo su Supabase (Database Cloud)
+    try {
+        const { error } = await supabaseClient
+            .from('contatti')
+            .upsert([{
+                id: contact.id,
+                name: contact.name,
+                nome: contact.nome,
+                cognome: contact.cognome,
+                phone: contact.phone,
+                date: contact.date,
+                region: contact.region,
+                appointment: contact.appointment || null,
+                type: contact.type,
+                status: contact.status,
+                communications: contact.communications
+            }]);
 
-    // Resetta e chiudi il form
+        if (error) {
+            console.error("Errore di Supabase durante il salvataggio:", error);
+            alert("Errore del database Supabase: " + error.message);
+            return;
+        }
+    } catch (err) {
+        console.error("Eccezione di rete/Supabase:", err);
+        alert("Impossibile contattare il database Supabase. Controlla la connessione.");
+        return;
+    }
+
+    // 2. Aggiornamento locale e interfaccia
+    persistContacts();
     resetContactForm();
     toggleContactForm();
-    
-    alert('Contatto salvato con successo nel gestionale!');
 }
 
 function editContact(id) {
     const contact = contactsDb.find(item => item.id === id);
     if (!contact) return;
     
-    // Separa cognome e nome dal campo intero 'name' salvato nel database
     const nameParts = getContactNameParts(contact);
     const firstName = nameParts.firstName;
     const lastName = nameParts.lastName;
@@ -1492,7 +1520,6 @@ function editContact(id) {
     
     document.getElementById('contactFormTitle').textContent = 'Modifica contatto / aggiungi comunicazione';
     
-    // Apre automaticamente il form a scomparsa in alto se è chiuso
     const formCard = document.getElementById('contactFormCard');
     if (formCard.style.display !== 'block') {
         formCard.style.display = 'block';
@@ -1502,10 +1529,30 @@ function editContact(id) {
     document.getElementById('contactFirstName').focus();
 }
 
-function deleteContact(id) {
+async function deleteContact(id) {
     const contact = contactsDb.find(item => item.id === id);
     if (!contact) return;
     if (!confirm(`Vuoi eliminare il contatto "${contact.name}" e tutte le sue comunicazioni?`)) return;
+
+    // 1. Eliminazione dal database Supabase
+    try {
+        const { error } = await supabaseClient
+            .from('contatti')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            console.error("Errore di Supabase durante l'eliminazione:", error);
+            alert("Errore durante l'eliminazione dal database: " + error.message);
+            return;
+        }
+    } catch (err) {
+        console.error("Eccezione di rete/Supabase:", err);
+        alert("Impossibile connettersi a Supabase per l'eliminazione.");
+        return;
+    }
+
+    // 2. Rimozione locale e aggiornamento UI
     contactsDb = contactsDb.filter(item => item.id !== id);
     persistContacts();
 }
