@@ -1754,28 +1754,39 @@ function getGoogleCalendarUrl(contact) {
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${dates}&details=${details}`;
 }
 
-// Recupera correttamente nome e cognome da qualsiasi formato (Supabase o Locale)
+// Recupera correttamente nome e cognome da diversi formati
 function getContactName(contact) {
     if (!contact) return 'Contatto Senza Nome';
 
-    // 1. Prova a leggere eventuali campi separati
-    const firstName = String(contact.first_name || contact.firstName || contact.firstname || contact.nome || contact.Nome || '').trim();
-    const lastName = String(contact.last_name || contact.lastName || contact.lastname || contact.cognome || contact.Cognome || '').trim();
+    const firstName =
+        contact.first_name ||
+        contact.firstName ||
+        contact.firstname ||
+        contact.nome ||
+        contact.Nome ||
+        '';
 
-    // 2. Prova a leggere eventuali campi completi
-    const fullName = String(contact.name || contact.full_name || contact.fullName || contact.nome_completo || contact.nomeCompleto || '').trim();
+    const lastName =
+        contact.last_name ||
+        contact.lastName ||
+        contact.lastname ||
+        contact.cognome ||
+        contact.Cognome ||
+        '';
 
-    // Se abbiamo sia nome che cognome separati, uniscili
-    if (firstName || lastName) {
+    const fullName =
+        contact.name ||
+        contact.full_name ||
+        contact.fullName ||
+        contact.nome_completo ||
+        contact.nomeCompleto ||
+        '';
+
+    if (String(firstName).trim() || String(lastName).trim()) {
         return `${firstName} ${lastName}`.trim();
     }
 
-    // Altrimenti usa il nome completo se esiste
-    if (fullName) {
-        return fullName;
-    }
-
-    return 'Contatto Senza Nome';
+    return String(fullName).trim() || 'Contatto Senza Nome';
 }
 
 function renderContacts() {
