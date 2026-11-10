@@ -1699,6 +1699,29 @@ window.onload = function() {
     populateDropdowns();
     updateStatistics();
 
+// --- FUNZIONE PER GESTIRE IL BADGE DI STATO ---
+function updateCloudStatus(status, message) {
+    const badge = document.getElementById('cloudStatusBadge') || document.getElementById('dbStatusBadge');
+    if (!badge) return;
+
+    const styles = {
+        checking: { background: '#fef3c7', color: '#92400e', text: '🟡 VERIFICA IN CORSO' },
+        connected: { background: '#dcfce7', color: '#166534', text: '🟢 DATABASE CONNESSO' },
+        error: { background: '#fee2e2', color: '#991b1b', text: '🔴 ERRORE CONNESSIONE' }
+    };
+
+    const current = styles[status] || styles.checking;
+    badge.style.background = current.background;
+    badge.style.color = current.color;
+    badge.innerHTML = current.text;
+    badge.title = message || '';
+}
+
+// --- LA TUA FUNZIONE ESISTENTE LOAD DATI ---
+async function loadDataFromSupabase() {
+    ...
+}
+
     // Poi scarica e sincronizza da Supabase
     loadDataFromSupabase();
     resetContactForm();
