@@ -1412,7 +1412,7 @@ function resetContactForm() {
     document.getElementById('contactFormTitle').textContent = 'Aggiungi contatto';
 }
 
-async function saveContact(event) {
+function saveContact(event) {
     event.preventDefault();
 
     const id = document.getElementById('contactId').value;
@@ -1442,6 +1442,7 @@ async function saveContact(event) {
         contact = { id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random(), communications: [] };
         contactsDb.unshift(contact);
     }
+    
     contact.name = name;
     contact.nome = firstName;
     contact.cognome = lastName;
@@ -1451,23 +1452,22 @@ async function saveContact(event) {
     contact.appointment = appointment;
     contact.type = type;
     contact.status = status;
-    if (note) contact.communications.push({ id: String(Date.now()) + Math.random(), text: note, timestamp: new Date().toISOString() });
-
-    // Salvataggio locale immediato e sicuro
-    persistContacts();
-
-    // Tentativo di invio a Supabase in background (senza bloccare l'interfaccia se la tabella ha vincoli differenti)
-    try {
-        await supabaseClient
-            .from('contatti')
-            .upsert([contact]);
-    } catch (err) {
-        console.warn("Sincronizzazione cloud saltata, dati salvati in locale.", err);
+    if (note) {
+        contact.communications.push({ 
+            id: String(Date.now()) + Math.random(), 
+            text: note, 
+            timestamp: new Date().toISOString() 
+        });
     }
 
+    // Salva in modo permanente nel browser
+    persistContacts();
+
+    // Resetta e chiudi il form
     resetContactForm();
     toggleContactForm();
-    alert('Contatto salvato con successo!');
+    
+    alert('Contatto salvato con successo nel gestionale!');
 }
 
 function editContact(id) {
