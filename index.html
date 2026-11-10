@@ -1655,13 +1655,13 @@ function formatItalianDateTime(value) {
 
 // --- SINCRONIZZAZIONE AUTOMATICA GOOGLE CALENDAR (un account Google per regione) ---
 // 1) Incolla qui l'ID client OAuth (Google Auth Platform > Client > "ID client", finisce con .apps.googleusercontent.com)
-const GOOGLE_CLIENT_ID = '';
+const GOOGLE_CLIENT_ID = '592583710469-2kfum1iicb1iflha29k5s62mbdouoos5.apps.googleusercontent.com';
 // 2) Inserisci l'email dell'account Google di ciascuna regione (serve a proporre l'account giusto al login)
 const REGION_ACCOUNTS = {
-    Basilicata: '',
-    Calabria: '',
-    Puglia: '',
-    Sicilia: ''
+    Basilicata: 'basilicata@diabasi.it',
+    Calabria: 'calabria@diabasi.it',
+    Puglia: 'puglia@diabasi.it',
+    Sicilia: 'sicilia@diabasi.it'
 };
 const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
 const gcalTokens = {};
