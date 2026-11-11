@@ -1816,7 +1816,6 @@ const displayName = getContactFullName(contact);
         
         const communications = [...(contact.communications || [])].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
         const phoneHtml = contact.phone ? ` · 📞 <a href="tel:${escapeHtml(contact.phone)}" style="color:var(--primary);text-decoration:none;">${escapeHtml(contact.phone)}</a>` : '';
-        const gcalBtn = contact.appointment ? `<a href="${getGoogleCalendarUrl(contact)}" target="_blank" class="btn btn-sm btn-gcal">📅 Aggiungi a Google Calendar</a>` : '';
         
         let bgStyle = 'background-color: #ffffff;';
         if (contact.status === 'Rimanda') {
@@ -1836,7 +1835,6 @@ const displayName = getContactFullName(contact);
             <div class="contact-meta">Appuntamento: <strong>${escapeHtml(formatItalianDateTime(contact.appointment))}</strong> · Tipo: ${escapeHtml(contact.type || '')}</div>
             <div class="contact-actions">
                 <button class="btn btn-sm" onclick="editContact('${contact.id}')">✏️ Modifica / nuova nota</button>
-                ${gcalBtn}
                 <button class="btn btn-sm btn-danger" onclick="deleteContact('${contact.id}')">Elimina</button>
             </div>
             <div class="comm-list">${communications.length ? communications.map(comm => `<div class="comm-entry"><time>${escapeHtml(formatItalianDateTime(comm.timestamp))}</time>${escapeHtml(comm.text)}<div style="text-align:right;margin-top:4px;display:flex;gap:4px;justify-content:flex-end;"><button class="btn btn-sm btn-outline" onclick="editCommunication('${contact.id}','${comm.id}')">✏️ Modifica nota</button><button class="btn btn-sm btn-outline" onclick="deleteCommunication('${contact.id}','${comm.id}')">Elimina nota</button></div></div>`).join('') : '<div class="contact-meta">Nessuna comunicazione registrata.</div>'}</div>
