@@ -8,8 +8,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Google Identity Services (accesso Google per Calendar) -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
 	<style>
         :root {
             --primary: #2563eb;
@@ -1528,9 +1526,8 @@ function deleteContact(id) {
     const contact = contactsDb.find(item => item.id === id);
     if (!contact) return;
     if (!confirm(`Vuoi eliminare il contatto "${contact.name}" e tutte le sue comunicazioni?`)) return;
-    if (contact.gcal_event_id && GOOGLE_CLIENT_ID) {
-        getGoogleToken(contact.gcal_region || contact.region)
-            .then(token => gcalRequest('DELETE', token, contact.gcal_event_id))
+    if (contact.gcal_event_id) {
+        callRegionScript(contact.gcal_region || contact.region, { action: 'delete', eventId: contact.gcal_event_id })
             .catch(err => {
                 console.error('Errore eliminazione evento Google:', err);
                 alert('Contatto eliminato, ma l\'evento su Google Calendar va eliminato a mano: ' + err.message);
@@ -1653,39 +1650,27 @@ function formatItalianDateTime(value) {
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString('it-IT', { dateStyle:'short', timeStyle:'short' });
 }
 
-// --- SINCRONIZZAZIONE AUTOMATICA GOOGLE CALENDAR (un account Google per regione) ---
-// 1) Incolla qui l'ID client OAuth (Google Auth Platform > Client > "ID client", finisce con .apps.googleusercontent.com)
-const GOOGLE_CLIENT_ID = '592583710469-2kfum1iicb1iflha29k5s62mbdouoos5.apps.googleusercontent.com';
-// 2) Inserisci l'email dell'account Google di ciascuna regione (serve a proporre l'account giusto al login)
-const REGION_ACCOUNTS = {
-    Basilicata: 'basilicata@diabasi.it',
-    Calabria: 'calabria@diabasi.it',
-    Puglia: 'puglia@diabasi.it',
-    Sicilia: 'sicilia@diabasi.it'
+// --- SINCRONIZZAZIONE AUTOMATICA GOOGLE CALENDAR (script Google, un account per regione) ---
+// Incolla qui l'URL dell'app web di ciascuno script (finisce con /exec), ottenuto dalla pubblicazione dello script.
+const REGION_SCRIPTS = {
+    Basilicata: 'https://script.google.com/macros/s/AKfycbyxU5gtmqoXYKM0Hw077S5g3x_c292vQ-kmaNbY_1YFnk3879EQgS_T-w8_nRw2y-rifA/exec',
+    Calabria: 'https://script.google.com/macros/s/AKfycbzAX_Km6ACEYyfa07C6hcvexLhkz85aH-puKQYMj5s38eOAcrGS7uf3gbiUFjDH_JsX/exec',
+    Puglia: 'https://script.google.com/macros/s/AKfycbxi12EXlOKJyO33rDQRswgqriQ9y3K05RMFVrkMb-lMAnKPGRr3s0hjEw9FBmTpaBQW/exec',
+    Sicilia: 'https://script.google.com/macros/s/AKfycbwAWkYjWTXaOHRUwWEZKzEddMVm7YN2_9oryiwf2rFvoR1qjG23EM4RBhkKLdb7LujY/exec'
 };
-const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
-const gcalTokens = {};
+// Deve coincidere con la SECRET presente negli script
+const SCRIPT_SECRET = 'uKtbL5voVDing-aTAtza1ofL';
 
-function getGoogleToken(region) {
-    return new Promise((resolve, reject) => {
-        const cached = gcalTokens[region];
-        if (cached && cached.exp > Date.now() + 60000) return resolve(cached.token);
-        if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
-            return reject(new Error('Libreria Google non caricata. Controlla la connessione.'));
-        }
-        const client = google.accounts.oauth2.initTokenClient({
-            client_id: GOOGLE_CLIENT_ID,
-            scope: GCAL_SCOPE,
-            hint: REGION_ACCOUNTS[region] || '',
-            callback: (resp) => {
-                if (resp.error) return reject(new Error(resp.error_description || resp.error));
-                gcalTokens[region] = { token: resp.access_token, exp: Date.now() + (Number(resp.expires_in) || 3600) * 1000 };
-                resolve(resp.access_token);
-            },
-            error_callback: (err) => reject(new Error((err && err.type) || 'Accesso Google annullato'))
-        });
-        client.requestAccessToken({ prompt: '' });
+async function callRegionScript(region, payload) {
+    const url = (REGION_SCRIPTS[region] || '').trim();
+    if (!url) throw new Error('Script Google non configurato per la regione ' + region);
+    const res = await fetch(url, {
+        method: 'POST',
+        body: JSON.stringify({ ...payload, secret: SCRIPT_SECRET })
     });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Errore dello script Google');
+    return data;
 }
 
 function gcalFormatLocal(d) {
@@ -1699,54 +1684,35 @@ function buildGcalEvent(contact) {
     return {
         summary: `Appuntamento con ${getContactFullName(contact)} (${contact.region})`,
         description: `Stato: ${contact.status || 'N/D'}\nTelefono: ${contact.phone || 'N/D'}\nGestito tramite Gestionale.`,
-        start: { dateTime: gcalFormatLocal(start), timeZone: 'Europe/Rome' },
-        end: { dateTime: gcalFormatLocal(end), timeZone: 'Europe/Rome' }
+        start: gcalFormatLocal(start),
+        end: gcalFormatLocal(end)
     };
-}
-
-async function gcalRequest(method, token, eventId, body) {
-    const url = 'https://www.googleapis.com/calendar/v3/calendars/primary/events' + (eventId ? '/' + encodeURIComponent(eventId) : '');
-    const res = await fetch(url, {
-        method,
-        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: body ? JSON.stringify(body) : undefined
-    });
-    if (method === 'DELETE' && (res.status === 404 || res.status === 410)) return null;
-    if (!res.ok) {
-        const t = await res.text();
-        throw new Error('Google Calendar ' + res.status + ': ' + t.slice(0, 200));
-    }
-    return res.status === 204 ? null : res.json();
 }
 
 // Crea, aggiorna o elimina l'evento sul calendario dell'account della regione
 async function syncContactToGoogle(contact) {
-    if (!GOOGLE_CLIENT_ID) return;
     if (!contact.appointment && !contact.gcal_event_id) return;
     try {
         if (contact.gcal_event_id) {
             const oldRegion = contact.gcal_region || contact.region;
             if (!contact.appointment || oldRegion !== contact.region) {
-                const oldToken = await getGoogleToken(oldRegion);
-                await gcalRequest('DELETE', oldToken, contact.gcal_event_id);
+                await callRegionScript(oldRegion, { action: 'delete', eventId: contact.gcal_event_id });
                 contact.gcal_event_id = null;
                 contact.gcal_region = null;
             }
         }
         if (!contact.appointment) return;
 
-        const token = await getGoogleToken(contact.region);
-        const body = buildGcalEvent(contact);
-        if (contact.gcal_event_id) {
-            try {
-                await gcalRequest('PATCH', token, contact.gcal_event_id, body);
-                return;
-            } catch (e) {
-                if (!/Calendar (404|410)/.test(e.message)) throw e;
-            }
-        }
-        const created = await gcalRequest('POST', token, null, body);
-        contact.gcal_event_id = created.id;
+        const ev = buildGcalEvent(contact);
+        const result = await callRegionScript(contact.region, {
+            action: 'upsert',
+            eventId: contact.gcal_event_id || '',
+            summary: ev.summary,
+            description: ev.description,
+            start: ev.start,
+            end: ev.end
+        });
+        contact.gcal_event_id = result.eventId;
         contact.gcal_region = contact.region;
     } catch (err) {
         console.error('Errore Google Calendar:', err);
