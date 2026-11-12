@@ -458,7 +458,7 @@
                             <option value="">Seleziona regione</option><option>Basilicata</option><option>Calabria</option><option>Puglia</option><option>Sicilia</option>
                         </select>
                     </div>
-                    <div class="form-group"><label for="contactAppointment">Appuntamento (data e ora)</label><input id="contactAppointment" type="datetime-local"></div>
+                    <div class="form-group"><label for="contactAppointment">Appuntamento (data)</label><input id="contactAppointment" type="date"></div>
                     <div class="form-group"><label for="contactType">Tipo</label>
                         <select id="contactType"><option value="Rosso">🔴 Rosso</option><option value="Arancione">🟠 Arancione</option><option value="Giallo">🟡 Giallo</option></select>
                     </div>
@@ -1447,7 +1447,7 @@ async function saveContact(event) {
     const phone = document.getElementById('contactPhone').value.trim();
     const date = document.getElementById('contactDate').value;
     const region = document.getElementById('contactRegion').value;
-    const appointment = document.getElementById('contactAppointment').value;
+    const appointment = (document.getElementById('contactAppointment').value || '').slice(0, 10);
     const type = document.getElementById('contactType').value;
     const status = document.getElementById('contactStatus').value;
     const note = document.getElementById('contactNote').value.trim();
@@ -1505,7 +1505,7 @@ function editContact(id) {
     document.getElementById('contactPhone').value = contact.phone || '';
     document.getElementById('contactDate').value = contact.date || localDateInputValue();
     document.getElementById('contactRegion').value = contact.region || '';
-    document.getElementById('contactAppointment').value = contact.appointment || '';
+    document.getElementById('contactAppointment').value = (contact.appointment || '').slice(0, 10);
     document.getElementById('contactType').value = contact.type || 'Rosso';
     document.getElementById('contactStatus').value = contact.status || 'In gestione';
     document.getElementById('contactNote').value = '';
@@ -1644,6 +1644,12 @@ function typeDotClass(type) {
     return type === 'Arancione' ? 'dot-arancione' : type === 'Giallo' ? 'dot-giallo' : 'dot-rosso';
 }
 
+function formatAppointmentDate(value) {
+    if (!value) return 'Non impostato';
+    const [y, m, d] = String(value).slice(0, 10).split('-');
+    return (y && m && d) ? `${d}/${m}/${y}` : String(value);
+}
+
 function formatItalianDateTime(value) {
     if (!value) return 'Non impostato';
     const date = new Date(value);
@@ -1673,19 +1679,11 @@ async function callRegionScript(region, payload) {
     return data;
 }
 
-function gcalFormatLocal(d) {
-    const p = n => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00`;
-}
-
 function buildGcalEvent(contact) {
-    const start = new Date(String(contact.appointment).slice(0, 16));
-    const end = new Date(start.getTime() + 30 * 60000);
     return {
         summary: `Appuntamento con ${getContactFullName(contact)} (${contact.region})`,
         description: `Stato: ${contact.status || 'N/D'}\nTelefono: ${contact.phone || 'N/D'}\nGestito tramite Gestionale.`,
-        start: gcalFormatLocal(start),
-        end: gcalFormatLocal(end)
+        date: String(contact.appointment).slice(0, 10)
     };
 }
 
@@ -1709,8 +1707,7 @@ async function syncContactToGoogle(contact) {
             eventId: contact.gcal_event_id || '',
             summary: ev.summary,
             description: ev.description,
-            start: ev.start,
-            end: ev.end
+            date: ev.date
         });
         contact.gcal_event_id = result.eventId;
         contact.gcal_region = contact.region;
@@ -1723,22 +1720,15 @@ async function syncContactToGoogle(contact) {
 // Funzione per generare il link di sincronizzazione Google Calendar
 function getGoogleCalendarUrl(contact) {
     if (!contact.appointment) return '#';
-    
-    // Converte la data/ora locale nel formato richiesto da Google (YYYYMMDDTHHmmss)
-    const startDate = new Date(contact.appointment);
-    if (isNaN(startDate.getTime())) return '#';
-    
-    const endDate = new Date(startDate.getTime() + 30 * 60000); // Durata 30 minuti di default
-    
-    const formatGCalDate = (date) => {
-        return date.toISOString().replace(/-|:|\.\d\d\d/g, '');
-    };
-    
+    const day = String(contact.appointment).slice(0, 10);
+    const start = new Date(day + 'T12:00:00');
+    if (isNaN(start.getTime())) return '#';
+    const next = new Date(start.getTime() + 24 * 3600 * 1000);
+    const fmt = d => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+
     const text = encodeURIComponent(`Appuntamento con ${getContactFullName(contact)} (${contact.region})`);
     const details = encodeURIComponent(`Stato: ${contact.status || 'N/D'}\nTelefono: ${contact.phone || 'N/D'}\nGestito tramite Gestionale Unificato.`);
-    const dates = `${formatGCalDate(startDate)}/${formatGCalDate(endDate)}`;
-
-    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${dates}&details=${details}`;
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${fmt(start)}/${fmt(next)}&details=${details}`;
 }
 
 function renderContacts() {
@@ -1772,8 +1762,7 @@ function renderContacts() {
             
             // 3. Contatti con appuntamento già passato (rispetto a adesso) vanno in fondo
             if (contact.appointment) {
-                const appTime = new Date(contact.appointment).getTime();
-                if (!isNaN(appTime) && appTime < nowTime) return 1;
+                if (contact.appointment.slice(0, 10) < localDateInputValue()) return 1;
             }
             
             return 0; // Restano in alto nella lista attiva
@@ -1832,7 +1821,7 @@ const displayName = getContactFullName(contact);
                 <div class="contact-meta">${escapeHtml(contact.region)}${phoneHtml} · Inserito il ${escapeHtml(contact.date || '')}</div></div>
                 <span class="badge">${escapeHtml(contact.status || '')}</span>
             </div>
-            <div class="contact-meta">Appuntamento: <strong>${escapeHtml(formatItalianDateTime(contact.appointment))}</strong> · Tipo: ${escapeHtml(contact.type || '')}</div>
+            <div class="contact-meta">Appuntamento: <strong>${escapeHtml(formatAppointmentDate(contact.appointment))}</strong> · Tipo: ${escapeHtml(contact.type || '')}</div>
             <div class="contact-actions">
                 <button class="btn btn-sm" onclick="editContact('${contact.id}')">✏️ Modifica / nuova nota</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteContact('${contact.id}')">Elimina</button>
@@ -1875,17 +1864,17 @@ function renderCalendar() {
         output += `<div class="calendar-day ${inMonth ? '' : 'other-month'} ${dateKey === today ? 'today' : ''}">
             <div class="calendar-day-number">${date.getDate()}</div>
             
-            ${events.map(contact => `<button class="calendar-event ${regionEventClass(contact.region)}" title="${escapeHtml(getContactFullName(contact))} · ${escapeHtml(contact.region)}" onclick="showPage('contatti');editContact('${contact.id}')">${escapeHtml(contact.appointment.slice(11,16))} - ${escapeHtml(getContactFullName(contact))}</button>`).join('')}
+            ${events.map(contact => `<button class="calendar-event ${regionEventClass(contact.region)}" title="${escapeHtml(getContactFullName(contact))} · ${escapeHtml(contact.region)}" onclick="showPage('contatti');editContact('${contact.id}')">${escapeHtml(getContactFullName(contact))}</button>`).join('')}
 
         </div>`;
     }
     grid.innerHTML = output;
 
-    const upcoming = contactsDb.filter(c => c.appointment && new Date(c.appointment).getTime() >= Date.now())
+    const upcoming = contactsDb.filter(c => c.appointment && c.appointment.slice(0, 10) >= localDateInputValue())
         .sort((a,b) => a.appointment.localeCompare(b.appointment)).slice(0,12);
     const upcomingEl = document.getElementById('upcomingAppointments');
     upcomingEl.innerHTML = upcoming.length ? upcoming.map(c => `<div class="contact-item">
-        <div class="contact-top"><strong><i class="type-dot" style="background:${({Basilicata:'#c4a5fa',Calabria:'#4ade80',Puglia:'#60a5fa',Sicilia:'#fb923c'})[c.region] || '#94a3b8'}"></i>${escapeHtml(getContactFullName(c))}</strong><span>${escapeHtml(formatItalianDateTime(c.appointment))}</span></div>
+        <div class="contact-top"><strong><i class="type-dot" style="background:${({Basilicata:'#c4a5fa',Calabria:'#4ade80',Puglia:'#60a5fa',Sicilia:'#fb923c'})[c.region] || '#94a3b8'}"></i>${escapeHtml(getContactFullName(c))}</strong><span>${escapeHtml(formatAppointmentDate(c.appointment))}</span></div>
         <div class="contact-meta">${escapeHtml(c.region)} ${c.phone ? '· 📞 ' + escapeHtml(c.phone) : ''} · ${escapeHtml(c.status || '')}</div>
         <div class="contact-actions">
             <button class="btn btn-sm" onclick="showPage('contatti');editContact('${c.id}')">Apri contatto</button>
