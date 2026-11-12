@@ -137,19 +137,43 @@
         @media(max-width:850px) { .contact-layout { grid-template-columns:1fr; } .calendar-day { min-height:85px; padding:4px; } .calendar-event { font-size:10px; } }
         @media(max-width:520px) { body { padding:10px; } .calendar-day { min-height:68px; } .calendar-event { padding:3px 2px; } }
 
+    
+        /* Accesso e ruoli */
+        #authOverlay { position: fixed; inset: 0; z-index: 9999; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 20px; }
+        #authOverlay .auth-box { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 28px; width: 100%; max-width: 380px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+        #authOverlay h2 { margin-bottom: 6px; font-size: 22px; }
+        #authOverlay p.auth-sub { color: var(--text-muted); font-size: 14px; margin-bottom: 18px; }
+        #authOverlay .form-group { margin-bottom: 12px; }
+        #authOverlay button[type=submit] { width: 100%; justify-content: center; margin-top: 6px; }
+        #authError { color: #b91c1c; font-size: 13px; margin-top: 10px; min-height: 18px; }
+        body.role-collab .admin-only { display: none !important; }
     </style>
 </head>
 <body>
+<div id="authOverlay">
+    <div class="auth-box">
+        <h2>Accesso al gestionale</h2>
+        <p class="auth-sub">Inserisci email e password per continuare.</p>
+        <form id="loginForm" onsubmit="handleLogin(event)">
+            <div class="form-group"><label for="loginEmail">Email</label><input id="loginEmail" type="email" autocomplete="username" required></div>
+            <div class="form-group"><label for="loginPassword">Password</label><input id="loginPassword" type="password" autocomplete="current-password" required></div>
+            <button class="btn" type="submit" id="loginBtn">Accedi</button>
+            <div id="authError"></div>
+        </form>
+    </div>
+</div>
 
 <nav class="main-nav" aria-label="Navigazione gestionale">
     <button class="nav-btn active" id="nav-home" onclick="showPage('home')">⌂ Home</button>
     <button class="nav-btn" id="nav-contatti" onclick="showPage('contatti')">👥 Contatti</button>
-    <button class="nav-btn" id="nav-diplomi" onclick="showPage('diplomi')">🎓 Diplomi</button>
+    <button class="nav-btn admin-only" id="nav-diplomi" onclick="showPage('diplomi')">🎓 Diplomi</button>
     <button class="nav-btn" id="nav-calendario" onclick="showPage('calendario')">📅 Calendario</button>
     <!-- INDICATORE STATO -->
     <div id="dbStatusBadge" style="margin-left:auto; font-size:12px; font-weight:600; padding:6px 12px; border-radius:20px; background:#fef3c7; color:#92400e;">
         🟡 Connessione DB in corso...
     </div>
+    <span id="userInfo" style="font-size:12px;color:var(--text-muted);margin-left:10px;"></span>
+    <button class="btn btn-outline btn-sm" style="margin-left:8px;" onclick="logout()">Esci</button>
 </nav>
 <div class="container">
     <section id="page-home" class="page-section active">
@@ -162,7 +186,7 @@
                     <p>Gestisci anagrafiche, comunicazioni con data e ora, stato e appuntamenti.</p>
                     <strong id="homeContactCount">0 contatti</strong>
                 </div>
-                <div class="card home-tile" onclick="showPage('diplomi')">
+                <div class="card home-tile admin-only" onclick="showPage('diplomi')">
                     <div style="font-size:30px;">🎓</div><h2>Diplomi</h2>
                     <p>Accedi al gestionale esistente, inclusi importazione, esportazione e statistiche.</p>
                 </div>
@@ -180,7 +204,7 @@
         <div class="header-actions">
             <button class="btn btn-purple" onclick="toggleStats()">📊 Statistiche & Reporting</button>
             <button class="btn" onclick="toggleAddForm()">➕ Nuovo Cliente</button>
-            <button class="btn btn-outline" onclick="triggerFileInput()">📁 Importa Excel/CSV</button>
+            <button class="btn btn-outline admin-only" onclick="triggerFileInput()">📁 Importa Excel/CSV</button>
             <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" onchange="handleFileSelect(event)">
             <button class="btn btn-success" onclick="exportExcel()">📥 Esporta Excel</button>
         </div>
@@ -560,7 +584,9 @@ async function loadDataFromSupabase() {
             localStorage.setItem(contactStorageKey, JSON.stringify(contactsDb));
         }
 
-        const { data: diplomiData, error: diplomiError } = await supabaseClient.from('diplomi').select('*');
+        const { data: diplomiData, error: diplomiError } = isAdmin()
+            ? await supabaseClient.from('diplomi').select('*')
+            : { data: null, error: null };
         if (!diplomiError && diplomiData) {
             // CORRETTO: assegna correttamente il primo pezzo al nome e il secondo al cognome
             db = diplomiData.map(item => {
@@ -1172,7 +1198,7 @@ function renderTable() {
             <td>${item.note ? `<span class="badge ${item.note === 'Azione Legale' ? 'badge-legale' : item.note === 'Integrazione' ? 'badge-integrazione' : ''}">${item.note}</span>` : ''}</td>
             <td>
                 <button class="btn btn-warning btn-sm" onclick="openEditForm(${realIndex})">✏️ Modifica</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteClient(${realIndex})">🗑️ Elimina</button>
+                <button class="btn btn-danger btn-sm admin-only" onclick="deleteClient(${realIndex})">🗑️ Elimina</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -1283,6 +1309,7 @@ function saveEditClient(e) {
 }
 
 function deleteClient(index) {
+    if (!requireAdmin()) return;
     if (confirm("Vuoi davvero eliminare questo cliente?")) {
         db.splice(index, 1);
         saveData();
@@ -1300,6 +1327,7 @@ function resetFilters() {
 }
 
 function triggerFileInput() {
+    if (!requireAdmin()) return;
     document.getElementById('fileInput').click();
 }
 
@@ -1389,6 +1417,7 @@ function closeImportModal() {
 }
 
 function processImport(mode) {
+    if (!requireAdmin()) return;
     if (tempImportedData.length === 0) return;
 
     if (mode === 'update') {
@@ -1467,6 +1496,10 @@ function exportExcel() {
 
 
 function showPage(page) {
+    if (page === 'diplomi' && !isAdmin()) {
+        alert("La sezione Diplomi è riservata all'amministratore.");
+        page = 'home';
+    }
     document.querySelectorAll('.page-section').forEach(section => section.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
     document.querySelectorAll('.nav-btn').forEach(button => button.classList.remove('active'));
@@ -1636,6 +1669,7 @@ function editContact(id) {
 }
 
 function deleteContact(id) {
+    if (!requireAdmin()) return;
     const contact = contactsDb.find(item => item.id === id);
     if (!contact) return;
     if (!confirm(`Vuoi eliminare il contatto "${contact.name}" e tutte le sue comunicazioni?`)) return;
@@ -1665,6 +1699,7 @@ function editCommunication(contactId, communicationId) {
 }
 
 function deleteCommunication(contactId, communicationId) {
+    if (!requireAdmin()) return;
     const contact = contactsDb.find(item => item.id === contactId);
     if (!contact || !confirm('Eliminare questa comunicazione?')) return;
     contact.communications = contact.communications.filter(item => item.id !== communicationId);
@@ -1777,15 +1812,15 @@ const REGION_SCRIPTS = {
     Puglia: 'https://script.google.com/macros/s/AKfycbxi12EXlOKJyO33rDQRswgqriQ9y3K05RMFVrkMb-lMAnKPGRr3s0hjEw9FBmTpaBQW/exec',
     Sicilia: 'https://script.google.com/macros/s/AKfycbwAWkYjWTXaOHRUwWEZKzEddMVm7YN2_9oryiwf2rFvoR1qjG23EM4RBhkKLdb7LujY/exec'
 };
-// Deve coincidere con la SECRET presente negli script
-const SCRIPT_SECRET = 'uKtbL5voVDing-aTAtza1ofL';
-
 async function callRegionScript(region, payload) {
     const url = (REGION_SCRIPTS[region] || '').trim();
     if (!url) throw new Error('Script Google non configurato per la regione ' + region);
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const token = sessionData && sessionData.session ? sessionData.session.access_token : '';
+    if (!token) throw new Error('Sessione scaduta: esci e rientra.');
     const res = await fetch(url, {
         method: 'POST',
-        body: JSON.stringify({ ...payload, secret: SCRIPT_SECRET })
+        body: JSON.stringify({ ...payload, token })
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Errore dello script Google');
@@ -1987,9 +2022,9 @@ const displayName = getContactFullName(contact);
             <div class="contact-meta">Appuntamento: <strong>${escapeHtml(formatAppointmentDate(contact.appointment))}</strong> · Tipo: ${escapeHtml(contact.type || '')}</div>
             <div class="contact-actions">
                 <button class="btn btn-sm" onclick="editContact('${contact.id}')">✏️ Modifica / nuova nota</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteContact('${contact.id}')">Elimina</button>
+                <button class="btn btn-sm btn-danger admin-only" onclick="deleteContact('${contact.id}')">Elimina</button>
             </div>
-            <div class="comm-list">${communications.length ? communications.map(comm => `<div class="comm-entry"><time>${escapeHtml(formatItalianDateTime(comm.timestamp))}</time>${escapeHtml(comm.text)}<div style="text-align:right;margin-top:4px;display:flex;gap:4px;justify-content:flex-end;"><button class="btn btn-sm btn-outline" onclick="editCommunication('${contact.id}','${comm.id}')">✏️ Modifica nota</button><button class="btn btn-sm btn-outline" onclick="deleteCommunication('${contact.id}','${comm.id}')">Elimina nota</button></div></div>`).join('') : '<div class="contact-meta">Nessuna comunicazione registrata.</div>'}</div>
+            <div class="comm-list">${communications.length ? communications.map(comm => `<div class="comm-entry"><time>${escapeHtml(formatItalianDateTime(comm.timestamp))}</time>${escapeHtml(comm.text)}<div style="text-align:right;margin-top:4px;display:flex;gap:4px;justify-content:flex-end;"><button class="btn btn-sm btn-outline" onclick="editCommunication('${contact.id}','${comm.id}')">✏️ Modifica nota</button><button class="btn btn-sm btn-outline admin-only" onclick="deleteCommunication('${contact.id}','${comm.id}')">Elimina nota</button></div></div>`).join('') : '<div class="contact-meta">Nessuna comunicazione registrata.</div>'}</div>
         </article>`;
     }).join('');
 }
@@ -2113,11 +2148,99 @@ function toggleContactForm() {
     }
 }
 
-window.onload = function() {
+// ---------- ACCESSO E RUOLI ----------
+let currentUser = null;
+let currentRole = null;
+let loggingOut = false;
+
+function isAdmin() { return currentRole === 'admin'; }
+function requireAdmin() {
+    if (!isAdmin()) {
+        alert("Operazione riservata all'amministratore.");
+        return false;
+    }
+    return true;
+}
+
+function showAuthError(msg) {
+    const el = document.getElementById('authError');
+    if (el) el.textContent = msg || '';
+}
+
+function clearLocalCache() {
+    try {
+        localStorage.removeItem('gestionale_db');
+        localStorage.removeItem(contactStorageKey);
+    } catch (e) {}
+}
+
+async function handleLogin(event) {
+    event.preventDefault();
+    const btn = document.getElementById('loginBtn');
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    showAuthError('');
+    btn.disabled = true;
+    btn.textContent = 'Accesso in corso...';
+    try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) {
+            showAuthError('Email o password non corretti.');
+            return;
+        }
+        await startSession(data.session);
+    } catch (err) {
+        showAuthError('Errore di connessione: ' + (err && err.message ? err.message : err));
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Accedi';
+    }
+}
+
+async function startSession(session) {
+    const { data, error } = await supabaseClient.from('utenti_ruoli').select('ruolo').eq('user_id', session.user.id).maybeSingle();
+    if (error) {
+        showAuthError('Impossibile verificare il ruolo: ' + error.message);
+        return;
+    }
+    if (!data || !data.ruolo) {
+        loggingOut = true;
+        clearLocalCache();
+        await supabaseClient.auth.signOut();
+        loggingOut = false;
+        showAuthError("Account non abilitato. Contatta l'amministratore.");
+        return;
+    }
+    currentUser = session.user;
+    currentRole = data.ruolo;
+    document.body.classList.toggle('role-admin', isAdmin());
+    document.body.classList.toggle('role-collab', !isAdmin());
+    document.getElementById('userInfo').textContent = `${currentUser.email} · ${isAdmin() ? 'Amministratore' : 'Collaboratore'}`;
+    document.getElementById('authOverlay').style.display = 'none';
+    document.getElementById('loginPassword').value = '';
+    startApp();
+}
+
+async function logout() {
+    loggingOut = true;
+    clearLocalCache();
+    try { await supabaseClient.auth.signOut(); } catch (e) {}
+    location.reload();
+}
+
+supabaseClient.auth.onAuthStateChange((event) => {
+    // Sessione scaduta o chiusa da un altro punto: torna alla schermata di accesso
+    if (event === 'SIGNED_OUT' && currentUser && !loggingOut) {
+        clearLocalCache();
+        location.reload();
+    }
+});
+
+function startApp() {
     // Prima carica i dati locali di riserva
     try {
         const saved = localStorage.getItem('gestionale_db');
-        if (saved) db = JSON.parse(saved);
+        if (saved && isAdmin()) db = JSON.parse(saved);
     } catch(e) {}
     loadContacts();
 
@@ -2130,6 +2253,15 @@ window.onload = function() {
     renderContacts();
     renderCalendar();
     updateHomeCounters();
+}
+
+window.onload = async function() {
+    try {
+        const { data } = await supabaseClient.auth.getSession();
+        if (data && data.session) await startSession(data.session);
+    } catch (err) {
+        showAuthError('Errore di connessione: ' + (err && err.message ? err.message : err));
+    }
 };
 </script>
 </body>
