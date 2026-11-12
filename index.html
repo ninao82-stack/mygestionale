@@ -288,8 +288,12 @@
         <form id="addClientForm" onsubmit="addClient(event)">
             <div class="form-grid">
                 <div class="form-group">
-                    <label>Nome Completo *</label>
-                    <input type="text" id="newNome" required placeholder="Es. Rossi Mario">
+                    <label>Nome *</label>
+                    <input type="text" id="newNome" required placeholder="Es. Mario">
+                </div>
+                <div class="form-group">
+                    <label>Cognome *</label>
+                    <input type="text" id="newCognome" required placeholder="Es. Rossi">
                 </div>
                 <div class="form-group">
                     <label>Diploma</label>
@@ -338,8 +342,12 @@
             <input type="hidden" id="editIndex">
             <div class="form-grid">
                 <div class="form-group">
-                    <label>Nome Completo *</label>
+                    <label>Nome *</label>
                     <input type="text" id="editNome" required>
+                </div>
+                <div class="form-group">
+                    <label>Cognome *</label>
+                    <input type="text" id="editCognome" required>
                 </div>
                 <div class="form-group">
                     <label>Diploma</label>
@@ -528,10 +536,6 @@
             </div>
             <div id="calendarGrid" class="calendar-grid"></div>
         </div>
-        <div class="card">
-            <h3>Prossimi appuntamenti</h3>
-            <div id="upcomingAppointments" class="contact-list" style="margin-top:12px;"></div>
-        </div>
     </section>
 </div>
 
@@ -561,12 +565,16 @@ async function loadDataFromSupabase() {
             // CORRETTO: assegna correttamente il primo pezzo al nome e il secondo al cognome
             db = diplomiData.map(item => {
                 const rawName = String(item.nome || '').trim();
+                const rawCognome = String(item.cognome || '').trim();
                 const spaceIndex = rawName.indexOf(' ');
                 
                 let nomeDiviso = rawName;
                 let cognomeDiviso = '';
                 
-                if (spaceIndex !== -1) {
+                if (rawCognome) {
+                    // Record già salvato con nome e cognome separati
+                    cognomeDiviso = rawCognome;
+                } else if (spaceIndex !== -1) {
                     nomeDiviso = rawName.substring(0, spaceIndex);
                     cognomeDiviso = rawName.substring(spaceIndex + 1);
                 }
@@ -575,11 +583,21 @@ async function loadDataFromSupabase() {
                     ...item,
                     nome: nomeDiviso,
                     cognome: cognomeDiviso,
-                    nomeCompleto: rawName 
+                    nomeCompleto: `${nomeDiviso} ${cognomeDiviso}`.trim()
                 };
             });
 
             localStorage.setItem('gestionale_db', JSON.stringify(db));
+
+            // Abilita il salvataggio dei diplomi su Supabase (serve una colonna "id" nella tabella)
+            if (diplomiData.length && !('id' in diplomiData[0])) {
+                diplomiCloudReady = false;
+                console.warn('Tabella diplomi senza colonna id: salvataggio su cloud disattivato.');
+                alert('La tabella "diplomi" su Supabase non ha la colonna "id": i diplomi non possono essere salvati sul cloud. Esegui lo script SQL che ti è stato fornito.');
+            } else {
+                diplomiCloudReady = true;
+                resetDiplomiSnapshot();
+            }
         }
 
 	populateDropdowns();
@@ -660,6 +678,66 @@ function getDiplomaGroup(diplomaStr) {
     return str;
 }
 
+// ---------- SALVATAGGIO DIPLOMI SU SUPABASE ----------
+const DIPLOMI_COLUMNS = ['nome', 'cognome', 'diploma', 'regione', 'data', 'pagamento', 'note'];
+let diplomiCloudReady = false;          // diventa true solo dopo un caricamento riuscito da Supabase
+const diplomiSnapshot = new Map();      // id -> contenuto salvato sul cloud
+let diplomiSyncChain = Promise.resolve();
+
+function diplomaPayload(item) {
+    const row = {};
+    DIPLOMI_COLUMNS.forEach(k => { row[k] = (item[k] === undefined || item[k] === null) ? '' : item[k]; });
+    return row;
+}
+function diplomaKey(item) { return JSON.stringify(diplomaPayload(item)); }
+function hasDiplomaId(item) { return item.id !== undefined && item.id !== null && item.id !== ''; }
+
+function resetDiplomiSnapshot() {
+    diplomiSnapshot.clear();
+    db.forEach(item => { if (hasDiplomaId(item)) diplomiSnapshot.set(String(item.id), diplomaKey(item)); });
+}
+
+async function runDiplomiSync() {
+    if (!diplomiCloudReady) return;
+    const inserts = [], updates = [], currentIds = new Set();
+    db.forEach(item => {
+        if (!hasDiplomaId(item)) { inserts.push(item); return; }
+        const id = String(item.id);
+        currentIds.add(id);
+        if (diplomiSnapshot.get(id) !== diplomaKey(item)) updates.push(item);
+    });
+    const deletes = [...diplomiSnapshot.keys()].filter(id => !currentIds.has(id));
+
+    for (let i = 0; i < inserts.length; i += 200) {
+        const chunk = inserts.slice(i, i + 200);
+        const { data, error } = await supabaseClient.from('diplomi').insert(chunk.map(diplomaPayload)).select('id');
+        if (error) throw error;
+        if (!data || data.length !== chunk.length) throw new Error('Risposta di Supabase incompleta durante il salvataggio.');
+        data.forEach((row, k) => { chunk[k].id = row.id; diplomiSnapshot.set(String(row.id), diplomaKey(chunk[k])); });
+    }
+    for (let i = 0; i < updates.length; i += 200) {
+        const chunk = updates.slice(i, i + 200);
+        const { error } = await supabaseClient.from('diplomi').upsert(chunk.map(it => ({ id: it.id, ...diplomaPayload(it) })));
+        if (error) throw error;
+        chunk.forEach(it => diplomiSnapshot.set(String(it.id), diplomaKey(it)));
+    }
+    for (let i = 0; i < deletes.length; i += 200) {
+        const chunk = deletes.slice(i, i + 200);
+        const { error } = await supabaseClient.from('diplomi').delete().in('id', chunk);
+        if (error) throw error;
+        chunk.forEach(id => diplomiSnapshot.delete(id));
+    }
+    if (inserts.length) { try { localStorage.setItem('gestionale_db', JSON.stringify(db)); } catch (e) {} }
+}
+
+function syncDiplomiCloud() {
+    diplomiSyncChain = diplomiSyncChain.then(runDiplomiSync).catch(err => {
+        console.error('Errore salvataggio diplomi su Supabase:', err);
+        alert('Salvataggio diplomi su cloud fallito: ' + (err && err.message ? err.message : err));
+    });
+    return diplomiSyncChain;
+}
+
 function saveData() {
     try {
         localStorage.setItem('gestionale_db', JSON.stringify(db));
@@ -667,6 +745,7 @@ function saveData() {
     populateDropdowns();
     renderTable();
     updateStatistics();
+    syncDiplomiCloud();
 }
 
 function toggleStats() {
@@ -1132,8 +1211,12 @@ function addClient(e) {
         finalNote = "";
     }
 
+    const nuovoNome = document.getElementById('newNome').value.trim();
+    const nuovoCognome = document.getElementById('newCognome').value.trim();
     const newObj = {
-        nome: document.getElementById('newNome').value,
+        nome: nuovoNome,
+        cognome: nuovoCognome,
+        nomeCompleto: `${nuovoNome} ${nuovoCognome}`.trim(),
         diploma: finalDiploma,
         regione: finalRegione,
         data: dateFormatted,
@@ -1156,6 +1239,7 @@ function openEditForm(index) {
     
     document.getElementById('editIndex').value = index;
     document.getElementById('editNome').value = client.nome || '';
+    document.getElementById('editCognome').value = client.cognome || '';
     document.getElementById('editDiploma').value = client.diploma || '';
     document.getElementById('editRegione').value = client.regione || '';
     document.getElementById('editData').value = client.data || '';
@@ -1180,8 +1264,13 @@ function saveEditClient(e) {
         editedNote = "";
     }
 
+    const editNome = document.getElementById('editNome').value.trim();
+    const editCognome = document.getElementById('editCognome').value.trim();
     db[index] = {
-        nome: document.getElementById('editNome').value,
+        ...db[index],
+        nome: editNome,
+        cognome: editCognome,
+        nomeCompleto: `${editNome} ${editCognome}`.trim(),
         diploma: document.getElementById('editDiploma').value,
         regione: document.getElementById('editRegione').value,
         data: document.getElementById('editData').value,
@@ -1257,8 +1346,20 @@ function handleFileSelect(e) {
                     importedNote = "";
                 }
 
+                const colNome = String(findValue(['NOME', 'Nome', 'nome']) || '').trim();
+                const colCognome = String(findValue(['COGNOME', 'Cognome', 'cognome']) || '').trim();
+                let impNome = colNome, impCognome = colCognome;
+                if (!(colNome && colCognome)) {
+                    const full = String(findValue(['NOME', 'Nome', 'nome', 'Cliente', 'Cognome', 'Nome Completo']) || '').trim();
+                    const sp = full.indexOf(' ');
+                    impNome = sp === -1 ? full : full.substring(0, sp);
+                    impCognome = sp === -1 ? '' : full.substring(sp + 1);
+                }
+
                 return {
-                    nome: String(findValue(['NOME', 'Nome', 'nome', 'Cliente', 'Cognome', 'Nome Completo']) || '').trim(),
+                    nome: impNome,
+                    cognome: impCognome,
+                    nomeCompleto: `${impNome} ${impCognome}`.trim(),
                     diploma: String(findValue(['DIPLOMA', 'Diploma', 'diploma', 'Corso']) || '').trim(),
                     regione: String(findValue(['REGIONE', 'Regione', 'regione', 'Città', 'Stato']) || '').trim(),
                     data: String(valData || '').trim(),
@@ -1296,7 +1397,7 @@ function processImport(mode) {
 
         tempImportedData.forEach(newItem => {
             const index = db.findIndex(existing => 
-                existing.nome.toLowerCase() === newItem.nome.toLowerCase() &&
+                `${existing.nome || ''} ${existing.cognome || ''}`.trim().toLowerCase() === `${newItem.nome || ''} ${newItem.cognome || ''}`.trim().toLowerCase() &&
                 (existing.data === newItem.data || !newItem.data)
             );
 
@@ -1351,7 +1452,8 @@ function exportExcel() {
         return;
     }
     const ws = XLSX.utils.json_to_sheet(db.map(item => ({
-        NOME: item.nome,
+        COGNOME: item.cognome || '',
+        NOME: item.nome || '',
         DIPLOMA: item.diploma,
         REGIONE: item.regione,
         DATA: item.data,
@@ -1931,17 +2033,6 @@ function renderCalendar() {
     }
     grid.innerHTML = output;
 
-    const upcoming = contactsDb.filter(c => c.appointment && c.appointment.slice(0, 10) >= localDateInputValue())
-        .sort((a,b) => a.appointment.localeCompare(b.appointment)).slice(0,12);
-    const upcomingEl = document.getElementById('upcomingAppointments');
-    upcomingEl.innerHTML = upcoming.length ? upcoming.map(c => `<div class="contact-item">
-        <div class="contact-top"><strong><i class="type-dot" style="background:${({Basilicata:'#c4a5fa',Calabria:'#4ade80',Puglia:'#60a5fa',Sicilia:'#fb923c'})[c.region] || '#94a3b8'}"></i>${escapeHtml(getContactFullName(c))}</strong><span>${escapeHtml(formatAppointmentDate(c.appointment))}</span></div>
-        <div class="contact-meta">${escapeHtml(c.region)} ${c.phone ? '· 📞 ' + escapeHtml(c.phone) : ''} · ${escapeHtml(c.status || '')}</div>
-        <div class="contact-actions">
-            <button class="btn btn-sm" onclick="showPage('contatti');editContact('${c.id}')">Apri contatto</button>
-            <a href="${getGoogleCalendarUrl(c)}" target="_blank" class="btn btn-sm btn-gcal">📅 Aggiungi a Google Calendar</a>
-        </div>
-    </div>`).join('') : '<div class="empty-state">Non ci sono appuntamenti futuri.</div>';
 }
 
 function updateHomeCounters() {
