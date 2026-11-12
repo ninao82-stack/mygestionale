@@ -482,6 +482,8 @@
                 <div class="filter-grid">
                     <div class="form-group"><label for="contactRegionFilter">Regione</label><select id="contactRegionFilter" onchange="renderContacts()"><option value="">Tutte</option><option>Basilicata</option><option>Calabria</option><option>Puglia</option><option>Sicilia</option></select></div>
                     <div class="form-group"><label for="contactStatusFilter">Stato</label><select id="contactStatusFilter" onchange="renderContacts()"><option value="">Tutti</option><option>Iscritto</option><option>In gestione</option><option>Non più interessato</option><option>Non risponde</option><option>Rimanda</option></select></div>
+                    <div class="form-group"><label for="contactMonthFilter">Mese</label><select id="contactMonthFilter" onchange="renderContacts()"><option value="current">Mese in corso</option><option value="all">Tutti i mesi</option><option value="1">Gennaio</option><option value="2">Febbraio</option><option value="3">Marzo</option><option value="4">Aprile</option><option value="5">Maggio</option><option value="6">Giugno</option><option value="7">Luglio</option><option value="8">Agosto</option><option value="9">Settembre</option><option value="10">Ottobre</option><option value="11">Novembre</option><option value="12">Dicembre</option></select></div>
+                    <div class="form-group"><label for="contactYearFilter">Anno</label><select id="contactYearFilter" onchange="renderContacts()"><option value="current">Anno corrente</option><option value="all">Tutti gli anni</option></select></div>
                 <div class="form-group">
     <label for="contactSortSelect">Ordina per</label>
     <select id="contactSortSelect" onchange="renderContacts()">
@@ -494,6 +496,7 @@
 		   </div>
 		</div>
             </div>
+            <div id="contactsCountInfo" class="contact-meta" style="margin:10px 4px;"></div>
             <div id="contactsList" class="contact-list"></div>
         </div>
     </section>
@@ -1731,6 +1734,32 @@ function getGoogleCalendarUrl(contact) {
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${fmt(start)}/${fmt(next)}&details=${details}`;
 }
 
+function refreshYearFilter() {
+    const sel = document.getElementById('contactYearFilter');
+    if (!sel) return;
+    const years = new Set([String(new Date().getFullYear())]);
+    contactsDb.forEach(c => [c.date, c.appointment].forEach(v => {
+        if (v && /^\d{4}/.test(String(v))) years.add(String(v).slice(0, 4));
+    }));
+    const prev = sel.value;
+    sel.innerHTML = '<option value="current">Anno corrente</option><option value="all">Tutti gli anni</option>'
+        + [...years].sort().reverse().map(y => `<option value="${y}">${y}</option>`).join('');
+    sel.value = [...sel.options].some(o => o.value === prev) ? prev : 'current';
+}
+
+// Un contatto rientra nel periodo se la data di inserimento O quella dell'appuntamento cade nel mese/anno scelti
+function contactMatchesPeriod(contact, monthSel, yearSel) {
+    const now = new Date();
+    const month = monthSel === 'current' ? now.getMonth() + 1 : (monthSel === 'all' ? 0 : Number(monthSel));
+    const year = yearSel === 'current' ? now.getFullYear() : (yearSel === 'all' ? 0 : Number(yearSel));
+    return [contact.date, contact.appointment].some(v => {
+        if (!v) return false;
+        const y = Number(String(v).slice(0, 4));
+        const m = Number(String(v).slice(5, 7));
+        return (!month || m === month) && (!year || y === year);
+    });
+}
+
 function renderContacts() {
     const list = document.getElementById('contactsList');
     if (!list) return;
@@ -1739,10 +1768,26 @@ function renderContacts() {
     const statusFilter = document.getElementById('contactStatusFilter')?.value || '';
     const sortBy = document.getElementById('contactSortSelect')?.value || 'appointment';
 
-    let filtered = contactsDb.filter(contact => {
+    refreshYearFilter();
+    const monthSel = document.getElementById('contactMonthFilter')?.value || 'current';
+    const yearSel = document.getElementById('contactYearFilter')?.value || 'current';
+    const periodIsDefault = monthSel === 'current' && yearSel === 'current';
+    // Se cerchi un nome/telefono/nota e il periodo è quello predefinito, la ricerca guarda in tutto l'archivio
+    const usePeriod = !(search && periodIsDefault);
+
+    const baseMatches = contactsDb.filter(contact => {
         const text = [getContactFullName(contact), contact.phone, contact.region, contact.status, ...(contact.communications || []).map(c => c.text)].join(' ').toLowerCase();
         return (!search || text.includes(search)) && (!regionFilter || contact.region === regionFilter) && (!statusFilter || contact.status === statusFilter);
     });
+    let filtered = usePeriod ? baseMatches.filter(contact => contactMatchesPeriod(contact, monthSel, yearSel)) : baseMatches;
+
+    const info = document.getElementById('contactsCountInfo');
+    if (info) {
+        const hidden = baseMatches.length - filtered.length;
+        info.textContent = `${filtered.length} contatti mostrati` + (hidden > 0
+            ? ` · ${hidden} non visibili (altri periodi): scegli Mese/Anno oppure usa la ricerca per vederli`
+            : '');
+    }
 
     const getNames = (fullName) => {
         const parts = (fullName || '').trim().split(' ');
