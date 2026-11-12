@@ -439,7 +439,15 @@
             <h1>Contatti</h1>
             <div class="header-actions">
                 <button class="btn" onclick="toggleContactForm()">➕ Nuovo contatto</button>
-                <button class="btn btn-outline" onclick="showPage('calendario')">📅 Apri calendario</button>
+                <div style="position:relative;display:inline-block;">
+                    <button class="btn btn-outline" type="button" onclick="toggleContactsExportMenu(event)">⬇️ Scarica dati ▾</button>
+                    <div id="contactsExportMenu" style="display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:50;min-width:230px;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:6px;">
+                        <button type="button" class="btn btn-outline" style="width:100%;justify-content:flex-start;margin-bottom:4px;" onclick="exportContacts('month')">📅 Solo il mese in corso</button>
+                        <button type="button" class="btn btn-outline" style="width:100%;justify-content:flex-start;margin-bottom:4px;" onclick="exportContacts('year')">🗓️ Solo l'anno in corso</button>
+                        <button type="button" class="btn btn-outline" style="width:100%;justify-content:flex-start;" onclick="exportContacts('all')">🗄️ Tutto il database clienti</button>
+                        <button type="button" class="btn btn-outline" style="width:100%;justify-content:flex-start;margin-top:4px;" onclick="exportContacts('filters')">🔎 Come l'elenco a schermo (filtri)</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1760,6 +1768,24 @@ function contactMatchesPeriod(contact, monthSel, yearSel) {
     });
 }
 
+// Restituisce i contatti secondo i filtri attivi a schermo (ricerca, regione, stato, mese, anno)
+function getFilteredContacts() {
+    const search = (document.getElementById('contactSearch')?.value || '').toLowerCase().trim();
+    const regionFilter = document.getElementById('contactRegionFilter')?.value || '';
+    const statusFilter = document.getElementById('contactStatusFilter')?.value || '';
+    const monthSel = document.getElementById('contactMonthFilter')?.value || 'current';
+    const yearSel = document.getElementById('contactYearFilter')?.value || 'current';
+    const periodIsDefault = monthSel === 'current' && yearSel === 'current';
+    const usePeriod = !(search && periodIsDefault);
+
+    const baseMatches = contactsDb.filter(contact => {
+        const text = [getContactFullName(contact), contact.phone, contact.region, contact.status, ...(contact.communications || []).map(c => c.text)].join(' ').toLowerCase();
+        return (!search || text.includes(search)) && (!regionFilter || contact.region === regionFilter) && (!statusFilter || contact.status === statusFilter);
+    });
+    const filtered = usePeriod ? baseMatches.filter(contact => contactMatchesPeriod(contact, monthSel, yearSel)) : baseMatches;
+    return { filtered, baseMatches };
+}
+
 function renderContacts() {
     const list = document.getElementById('contactsList');
     if (!list) return;
@@ -1769,17 +1795,7 @@ function renderContacts() {
     const sortBy = document.getElementById('contactSortSelect')?.value || 'appointment';
 
     refreshYearFilter();
-    const monthSel = document.getElementById('contactMonthFilter')?.value || 'current';
-    const yearSel = document.getElementById('contactYearFilter')?.value || 'current';
-    const periodIsDefault = monthSel === 'current' && yearSel === 'current';
-    // Se cerchi un nome/telefono/nota e il periodo è quello predefinito, la ricerca guarda in tutto l'archivio
-    const usePeriod = !(search && periodIsDefault);
-
-    const baseMatches = contactsDb.filter(contact => {
-        const text = [getContactFullName(contact), contact.phone, contact.region, contact.status, ...(contact.communications || []).map(c => c.text)].join(' ').toLowerCase();
-        return (!search || text.includes(search)) && (!regionFilter || contact.region === regionFilter) && (!statusFilter || contact.status === statusFilter);
-    });
-    let filtered = usePeriod ? baseMatches.filter(contact => contactMatchesPeriod(contact, monthSel, yearSel)) : baseMatches;
+    let { filtered, baseMatches } = getFilteredContacts();
 
     const info = document.getElementById('contactsCountInfo');
     if (info) {
@@ -1933,6 +1949,67 @@ function updateHomeCounters() {
     const appointmentsCount = document.getElementById('homeAppointmentCount');
     if (contactsCount) contactsCount.textContent = `${contactsDb.length} contatti`;
     if (appointmentsCount) appointmentsCount.textContent = `${contactsDb.filter(c => c.appointment).length} appuntamenti`;
+}
+
+function toggleContactsExportMenu(event) {
+    if (event) event.stopPropagation();
+    const menu = document.getElementById('contactsExportMenu');
+    if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+}
+document.addEventListener('click', () => {
+    const menu = document.getElementById('contactsExportMenu');
+    if (menu) menu.style.display = 'none';
+});
+
+// Scarica i contatti in Excel: scope = 'month' | 'year' | 'all'
+function exportContacts(scope) {
+    const menu = document.getElementById('contactsExportMenu');
+    if (menu) menu.style.display = 'none';
+    if (typeof XLSX === 'undefined') {
+        alert('Libreria Excel non caricata. Controlla la connessione e riprova.');
+        return;
+    }
+    const now = new Date();
+    let rows = scope === 'filters'
+        ? getFilteredContacts().filtered
+        : contactsDb.filter(c =>
+            scope === 'month' ? contactMatchesPeriod(c, 'current', 'current')
+            : scope === 'year' ? contactMatchesPeriod(c, 'all', 'current')
+            : true);
+    if (!rows.length) {
+        alert('Non ci sono contatti da scaricare per il periodo scelto.');
+        return;
+    }
+    rows = [...rows].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+
+    const data = rows.map(c => {
+        const parts = getContactNameParts(c);
+        const notes = [...(c.communications || [])]
+            .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+            .map(n => `${formatItalianDateTime(n.timestamp)}: ${n.text}`)
+            .join('\n');
+        return {
+            'Cognome': parts.lastName,
+            'Nome': parts.firstName,
+            'Telefono': c.phone || '',
+            'Regione': c.region || '',
+            'Stato': c.status || '',
+            'Tipo': c.type || '',
+            'Data inserimento': c.date ? formatAppointmentDate(c.date) : '',
+            'Appuntamento': c.appointment ? formatAppointmentDate(c.appointment) : '',
+            'Note': notes
+        };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = [{wch:20},{wch:18},{wch:16},{wch:12},{wch:18},{wch:10},{wch:16},{wch:14},{wch:80}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Contatti');
+
+    const mese = now.toLocaleString('it-IT', { month: 'long' });
+    const anno = now.getFullYear();
+    const nome = scope === 'filters' ? `Contatti_filtrati_${localDateInputValue()}` : scope === 'month' ? `Contatti_${mese}_${anno}` : scope === 'year' ? `Contatti_${anno}` : 'Contatti_database_completo';
+    XLSX.writeFile(wb, nome + '.xlsx');
 }
 
 function toggleContactForm() {
