@@ -157,6 +157,7 @@
         <form id="loginForm" onsubmit="handleLogin(event)">
             <div class="form-group"><label for="loginEmail">Email</label><input id="loginEmail" type="email" autocomplete="username" required></div>
             <div class="form-group"><label for="loginPassword">Password</label><input id="loginPassword" type="password" autocomplete="current-password" required></div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:4px 0 10px;text-transform:none;font-weight:400;"><input type="checkbox" style="width:auto;" onchange="document.getElementById('loginPassword').type = this.checked ? 'text' : 'password'"> Mostra password</label>
             <button class="btn" type="submit" id="loginBtn">Accedi</button>
             <div id="authError"></div>
         </form>
@@ -2185,7 +2186,10 @@ async function handleLogin(event) {
     try {
         const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
         if (error) {
-            showAuthError('Email o password non corretti.');
+            const m = String(error.message || '');
+            if (/invalid login credentials/i.test(m)) showAuthError('Email o password non corretti.');
+            else if (/not confirmed/i.test(m)) showAuthError("Email non confermata: su Supabase, in Authentication > Users, l'utente va confermato.");
+            else showAuthError('Accesso non riuscito: ' + m);
             return;
         }
         await startSession(data.session);
