@@ -162,6 +162,7 @@
         .board-item.done .board-text { text-decoration: line-through; }
         .board-badges { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
         .bbadge { font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px; background:#e2e8f0; color:#334155; }
+        .board-list { max-height: calc(100vh - 320px); min-height: 240px; overflow-y: auto; padding-right: 4px; scrollbar-width: thin; }
         .b-urgente { background:#dc2626; color:#fff; }
         .b-giornata { background:#fef08a; color:#854d0e; }
         .b-settimana { background:#dbeafe; color:#1d4ed8; }
@@ -624,7 +625,7 @@
                         <button class="btn btn-success" type="submit">Aggiungi</button>
                     </form>
                 </details>
-                <div id="list-da_fare"></div>
+                <div id="list-da_fare" class="board-list"></div>
             </div>
             <div class="card board-col">
                 <h2>🧠 Da ricordare <span class="board-count" id="count-da_ricordare">0</span></h2>
@@ -636,7 +637,7 @@
                         <button class="btn btn-success" type="submit">Aggiungi</button>
                     </form>
                 </details>
-                <div id="list-da_ricordare"></div>
+                <div id="list-da_ricordare" class="board-list"></div>
             </div>
             <div class="card board-col">
                 <h2>💶 Pagamenti <span class="board-count" id="count-pagamenti">0</span></h2>
@@ -651,7 +652,7 @@
                         <button class="btn btn-success" type="submit">Aggiungi</button>
                     </form>
                 </details>
-                <div id="list-pagamenti"></div>
+                <div id="list-pagamenti" class="board-list"></div>
             </div>
         </div>
     </section>
