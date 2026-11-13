@@ -138,6 +138,44 @@
         @media(max-width:520px) { body { padding:10px; } .calendar-day { min-height:68px; } .calendar-event { padding:3px 2px; } }
 
     
+        /* Calendario: gestionale (grassetto) e Google (tratteggiato) */
+        .calendar-event.gest { font-weight: 800; }
+        .calendar-event.google { font-weight: 400; border: 1px dashed currentColor; cursor: pointer; background-image: none; }
+        .cal-status { font-size: 12px; color: var(--text-muted); margin-top: 8px; min-height: 16px; }
+        .src-badge { display:inline-block; font-size:11px; padding:2px 7px; border-radius:10px; margin-left:6px; }
+        .src-gest { background:#e0e7ff; color:#3730a3; font-weight:800; }
+        .src-google { background:#f1f5f9; color:#475569; font-weight:400; border:1px dashed #94a3b8; }
+
+        /* Bacheca */
+        .board-grid { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px; align-items:start; margin-top:16px; }
+        @media(max-width:1000px) { .board-grid { grid-template-columns:1fr; } }
+        .board-col { padding:16px; }
+        .board-col h2 { font-size:18px; display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+        .board-count { font-size:12px; font-weight:700; background:#e2e8f0; border-radius:12px; padding:2px 9px; }
+        .board-add { border:1px solid var(--border); border-radius:8px; padding:8px 10px; margin-bottom:12px; background:#f8fafc; }
+        .board-add summary { cursor:pointer; font-weight:700; font-size:14px; }
+        .board-add form { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+        .board-add textarea { min-height:70px; resize:vertical; }
+        .board-item { border:1px solid var(--border); border-left:5px solid #cbd5e1; border-radius:8px; padding:10px 12px; margin-bottom:10px; background:#fff; }
+        .board-item.for-me { border-left-color: var(--primary); background:#f5f9ff; }
+        .board-item.done { opacity:.6; }
+        .board-item.done .board-text { text-decoration: line-through; }
+        .board-badges { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
+        .bbadge { font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px; background:#e2e8f0; color:#334155; }
+        .b-urgente { background:#fee2e2; color:#b91c1c; }
+        .b-giornata { background:#ffedd5; color:#c2410c; }
+        .b-settimana { background:#dbeafe; color:#1d4ed8; }
+        .b-weekend { background:#ede9fe; color:#6d28d9; }
+        .b-rata { background:#e2e8f0; color:#334155; }
+        .b-admin { background:#1e293b; color:#fff; }
+        .b-collab { background:#0f766e; color:#fff; }
+        .b-perte { background:#2563eb; color:#fff; }
+        .board-text { white-space:pre-wrap; font-size:14px; }
+        .board-meta { font-size:11px; color:var(--text-muted); margin-top:6px; }
+        .board-actions { display:flex; gap:6px; margin-top:8px; }
+        .board-status { font-size:12px; color:#b91c1c; margin:8px 0; min-height:14px; }
+        #navBachecaCount { background:#dc2626; color:#fff; border-radius:10px; font-size:11px; padding:1px 7px; margin-left:4px; display:none; }
+
         /* Accesso e ruoli */
         #authOverlay { position: fixed; inset: 0; z-index: 9999; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 20px; }
         #authOverlay .auth-box { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 28px; width: 100%; max-width: 380px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
@@ -169,6 +207,7 @@
     <button class="nav-btn" id="nav-contatti" onclick="showPage('contatti')">👥 Contatti</button>
     <button class="nav-btn admin-only" id="nav-diplomi" onclick="showPage('diplomi')">🎓 Diplomi</button>
     <button class="nav-btn" id="nav-calendario" onclick="showPage('calendario')">📅 Calendario</button>
+    <button class="nav-btn" id="nav-bacheca" onclick="showPage('bacheca')">📌 Bacheca<span id="navBachecaCount"></span></button>
     <!-- INDICATORE STATO -->
     <div id="dbStatusBadge" style="margin-left:auto; font-size:12px; font-weight:600; padding:6px 12px; border-radius:20px; background:#fef3c7; color:#92400e;">
         🟡 Connessione DB in corso...
@@ -196,6 +235,10 @@
                     <p>Visualizza gli appuntamenti dei contatti, distinti per regione.</p>
                     <strong id="homeAppointmentCount">0 appuntamenti</strong>
                 </div>
+                <div class="card home-tile" onclick="showPage('bacheca')">
+                    <div style="font-size:30px;">📌</div><h2>Bacheca</h2>
+                    <p>Compiti, promemoria e scadenze di pagamento condivisi con il collaboratore.</p>
+                </div>
             </div>
         </div>
     </section>
@@ -212,6 +255,22 @@
     </div>
 
     <!-- Modal Opzioni Importazione -->
+    <div id="gevModal" class="modal">
+        <div class="modal-content">
+            <h3>Evento Google Calendar</h3>
+            <div id="gevInfo" style="font-size:13px;color:#64748b;margin-bottom:10px;"></div>
+            <div class="form-group"><label>Titolo</label><input type="text" id="gevTitle"></div>
+            <div class="form-group"><label>Data</label><input type="date" id="gevDate"></div>
+            <div class="form-group"><label>Descrizione</label><textarea id="gevDesc" rows="3"></textarea></div>
+            <div id="gevMsg" style="font-size:13px;color:#b91c1c;min-height:18px;"></div>
+            <div class="modal-actions" style="flex-direction:row;flex-wrap:wrap;">
+                <button class="btn btn-success" id="gevSave" onclick="saveGoogleEvent()">Salva</button>
+                <button class="btn btn-danger" id="gevDelete" onclick="deleteGoogleEvent()">Elimina</button>
+                <button class="btn btn-outline" onclick="closeGoogleEventModal()">Annulla</button>
+            </div>
+        </div>
+    </div>
+
     <div id="importModal" class="modal">
         <div class="modal-content">
             <h3>📥 Opzioni Importazione Excel</h3>
@@ -310,6 +369,7 @@
     <!-- Form Inserimento Nuovo Cliente -->
     <div class="card form-card" id="addFormCard">
         <h3>Aggiungi Nuovo Cliente</h3>
+        <div id="enrollHint" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:8px;padding:10px 12px;margin:8px 0 12px;font-size:14px;"></div>
         <form id="addClientForm" onsubmit="addClient(event)">
             <div class="form-grid">
                 <div class="form-group">
@@ -542,10 +602,66 @@
         </div>
     </section>
 
+    <section id="page-bacheca" class="page-section">
+        <div class="header">
+            <h1>Bacheca</h1>
+            <div class="header-actions">
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" id="boardShowDone" style="width:auto;" onchange="renderBacheca()"> Mostra completati</label>
+                <button class="btn btn-outline" onclick="loadBacheca()">🔄 Aggiorna</button>
+            </div>
+        </div>
+        <div id="boardStatus" class="board-status"></div>
+        <div class="board-grid">
+            <div class="card board-col">
+                <h2>✅ Da fare <span class="board-count" id="count-da_fare">0</span></h2>
+                <details class="board-add" id="add-da_fare"><summary>➕ Aggiungi compito</summary>
+                    <form onsubmit="addBachecaItem(event, 'da_fare')">
+                        <textarea id="f-da_fare-testo" required placeholder="Cosa va fatto..."></textarea>
+                        <div class="form-group"><label>Priorità</label>
+                            <select id="f-da_fare-priorita"><option>Urgente</option><option>Entro la giornata</option><option selected>Entro la settimana</option></select></div>
+                        <div class="form-group"><label>Rivolto a</label>
+                            <select id="f-da_fare-dest" class="boardFor"><option value="admin">Amministratore</option><option value="collaboratore">Collaboratori</option></select></div>
+                        <button class="btn btn-success" type="submit">Aggiungi</button>
+                    </form>
+                </details>
+                <div id="list-da_fare"></div>
+            </div>
+            <div class="card board-col">
+                <h2>🧠 Da ricordare <span class="board-count" id="count-da_ricordare">0</span></h2>
+                <details class="board-add" id="add-da_ricordare"><summary>➕ Aggiungi promemoria</summary>
+                    <form onsubmit="addBachecaItem(event, 'da_ricordare')">
+                        <textarea id="f-da_ricordare-testo" required placeholder="Es. mandare mail hotel; allievo X problematico..."></textarea>
+                        <div class="form-group"><label>Rivolto a</label>
+                            <select id="f-da_ricordare-dest" class="boardFor"><option value="admin">Amministratore</option><option value="collaboratore">Collaboratori</option></select></div>
+                        <button class="btn btn-success" type="submit">Aggiungi</button>
+                    </form>
+                </details>
+                <div id="list-da_ricordare"></div>
+            </div>
+            <div class="card board-col">
+                <h2>💶 Pagamenti <span class="board-count" id="count-pagamenti">0</span></h2>
+                <details class="board-add" id="add-pagamenti"><summary>➕ Aggiungi scadenza</summary>
+                    <form onsubmit="addBachecaItem(event, 'pagamenti')">
+                        <div class="form-group"><label>Cognome *</label><input id="f-pagamenti-cognome" required></div>
+                        <div class="form-group"><label>Nome *</label><input id="f-pagamenti-nome" required></div>
+                        <div class="form-group"><label>Telefono (facoltativo)</label><input id="f-pagamenti-telefono" type="tel"></div>
+                        <div class="form-group"><label>Priorità</label>
+                            <select id="f-pagamenti-priorita"><option>Urgente</option><option>Week end</option><option selected>Rata</option></select></div>
+                        <div class="form-group"><label>Nota (facoltativa)</label><input id="f-pagamenti-testo" placeholder="Es. importo, accordi..."></div>
+                        <button class="btn btn-success" type="submit">Aggiungi</button>
+                    </form>
+                </details>
+                <div id="list-pagamenti"></div>
+            </div>
+        </div>
+    </section>
     <section id="page-calendario" class="page-section">
         <div class="header">
             <h1>Calendario appuntamenti</h1>
-            <div class="header-actions"><button class="btn" onclick="showPage('contatti')">➕ Aggiungi appuntamento da Contatti</button></div>
+            <div class="header-actions">
+                <button class="btn btn-outline" onclick="ensureGoogleEvents(true)">🔄 Aggiorna da Google</button>
+                <button class="btn" onclick="showPage('contatti')">➕ Aggiungi appuntamento da Contatti</button>
+            </div>
         </div>
         <div class="card">
             <div class="calendar-toolbar">
@@ -559,7 +675,16 @@
                 <span><i class="type-dot" style="background:#60a5fa"></i>Puglia</span>
                 <span><i class="type-dot" style="background:#fb923c"></i>Sicilia</span>
             </div>
+            <div class="calendar-legend">
+                <span><strong>● Grassetto</strong> = appuntamento preso dal gestionale</span>
+                <span><span style="border:1px dashed #64748b;padding:0 6px;border-radius:4px;">Tratteggiato</span> = inserito su Google Calendar (clic per modificarlo)</span>
+            </div>
             <div id="calendarGrid" class="calendar-grid"></div>
+            <div id="googleStatus" class="cal-status"></div>
+        </div>
+        <div class="card">
+            <h3>Prossimi appuntamenti</h3>
+            <div id="upcomingAppointments" class="contact-list" style="margin-top:12px;"></div>
         </div>
     </section>
 </div>
@@ -706,7 +831,6 @@ function getDiplomaGroup(diplomaStr) {
 }
 
 // ---------- SALVATAGGIO DIPLOMI SU SUPABASE ----------
-let lastDisplayedDiplomi = [];   // righe nell'ordine in cui sono mostrate in tabella
 const DIPLOMI_COLUMNS = ['nome', 'cognome', 'diploma', 'regione', 'data', 'pagamento', 'note'];
 let diplomiCloudReady = false;          // diventa true solo dopo un caricamento riuscito da Supabase
 const diplomiSnapshot = new Map();      // id -> contenuto salvato sul cloud
@@ -1186,7 +1310,6 @@ function renderTable() {
     const tbody = document.getElementById('tableBody');
     tbody.innerHTML = '';
 
-    lastDisplayedDiplomi = filtered;
     filtered.forEach((item) => {
         const realIndex = db.indexOf(item);
         const tr = document.createElement('tr');
@@ -1201,7 +1324,6 @@ function renderTable() {
             <td>${item.note ? `<span class="badge ${item.note === 'Azione Legale' ? 'badge-legale' : item.note === 'Integrazione' ? 'badge-integrazione' : ''}">${item.note}</span>` : ''}</td>
             <td>
                 <button class="btn btn-warning btn-sm" onclick="openEditForm(${realIndex})">✏️ Modifica</button>
-                <button class="btn btn-outline btn-sm admin-only" title="Inverte nome e cognome di questa riga e di tutte quelle sotto, nell'ordine mostrato" onclick="swapNamesFrom(${realIndex})">⇄ Inverti da qui in giù</button>
                 <button class="btn btn-danger btn-sm admin-only" onclick="deleteClient(${realIndex})">🗑️ Elimina</button>
             </td>
         `;
@@ -1211,8 +1333,46 @@ function renderTable() {
     document.getElementById('counter').textContent = `Risultati: ${filtered.length} di ${db.length}`;
 }
 
+function setSelectOrCustom(selectId, customId, value) {
+    const sel = document.getElementById(selectId);
+    const custom = document.getElementById(customId);
+    if (!sel || !custom) return;
+    const exists = value && [...sel.options].some(o => o.value === value);
+    if (!value) {
+        sel.value = '';
+    } else if (exists) {
+        sel.value = value;
+    } else if ([...sel.options].some(o => o.value === '__NEW__')) {
+        sel.value = '__NEW__';
+    }
+    toggleCustomInput(selectId, customId);
+    if (sel.value === '__NEW__') custom.value = value || '';
+}
+
+// Apre la pagina Diplomi con il modulo di nuova iscrizione precompilato dal contatto
+function openEnrollmentFromContact(contact) {
+    const parts = getContactNameParts(contact);
+    showPage('diplomi');
+    closeEditForm();
+    const form = document.getElementById('addClientForm');
+    form.reset();
+    ['newDiplomaCustom', 'newRegioneCustom', 'newNoteCustom'].forEach(id => { const el = document.getElementById(id); if (el) { el.style.display = 'none'; el.required = false; el.value = ''; } });
+    document.getElementById('newNome').value = parts.firstName;
+    document.getElementById('newCognome').value = parts.lastName;
+    setSelectOrCustom('newRegioneSelect', 'newRegioneCustom', contact.region || '');
+    document.getElementById('newData').value = localDateInputValue();
+    const hint = document.getElementById('enrollHint');
+    hint.textContent = `Iscrizione da Contatti: ${parts.firstName} ${parts.lastName}. Scegli il diploma e salva. Se si è iscritto a un corso singolo, premi Annulla.`;
+    hint.style.display = 'block';
+    const card = document.getElementById('addFormCard');
+    card.style.display = 'block';
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
 function toggleAddForm() {
     closeEditForm();
+    const hint = document.getElementById('enrollHint');
+    if (hint) hint.style.display = 'none';
     const card = document.getElementById('addFormCard');
     card.style.display = card.style.display === 'block' ? 'none' : 'block';
 }
@@ -1310,33 +1470,6 @@ function saveEditClient(e) {
 
     saveData();
     closeEditForm();
-}
-
-// Inverte nome e cognome della riga scelta e di tutte quelle sotto (nell'ordine mostrato in tabella)
-function swapNamesFrom(realIndex) {
-    if (!requireAdmin()) return;
-    const start = lastDisplayedDiplomi.indexOf(db[realIndex]);
-    if (start === -1) return;
-    const rows = lastDisplayedDiplomi.slice(start);
-    const swappable = rows.filter(r => String(r.nome || '').trim() && String(r.cognome || '').trim());
-    const skipped = rows.length - swappable.length;
-    if (!swappable.length) {
-        alert('Nessuna riga da invertire: servono sia nome sia cognome.');
-        return;
-    }
-    const first = rows[0], last = rows[rows.length - 1];
-    const msg = `Verranno invertiti nome e cognome di ${swappable.length} righe, da "${first.nome} ${first.cognome}" fino a "${last.nome} ${last.cognome}" (nell'ordine mostrato in tabella).`
-        + (skipped ? `\n${skipped} righe senza nome o cognome verranno lasciate com'erano.` : '')
-        + '\n\nProcedere?';
-    if (!confirm(msg)) return;
-    swappable.forEach(r => {
-        const tmp = r.nome;
-        r.nome = r.cognome;
-        r.cognome = tmp;
-        r.nomeCompleto = `${r.nome} ${r.cognome}`.trim();
-    });
-    saveData();
-    alert(`Invertite ${swappable.length} righe. Se hai sbagliato, premi di nuovo "Inverti da qui in giù" sulla stessa riga per annullare.`);
 }
 
 function deleteClient(index) {
@@ -1538,6 +1671,7 @@ function showPage(page) {
     if (nav) nav.classList.add('active');
     if (page === 'contatti') renderContacts();
     if (page === 'calendario') renderCalendar();
+    if (page === 'bacheca') loadBacheca();
     updateHomeCounters();
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -1644,6 +1778,7 @@ async function saveContact(event) {
         contact = { id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random(), communications: [] };
         contactsDb.unshift(contact);
     }
+    const prevStatus = contact.status || '';
     contact.name = name;
     contact.nome = firstName;
     contact.cognome = lastName;
@@ -1653,13 +1788,18 @@ async function saveContact(event) {
     contact.appointment = appointment;
     contact.type = type;
     contact.status = status;
-    if (note) contact.communications.push({ id: String(Date.now()) + Math.random(), text: note, timestamp: new Date().toISOString() });
+    if (note) contact.communications.push({ id: String(Date.now()) + Math.random(), text: note, timestamp: new Date().toISOString(), author: currentUserName || '' });
 
     await syncContactToGoogle(contact);
     persistContacts();
     await upsertContactCloud(contact);
     resetContactForm();
     toggleContactForm();
+
+    // Passaggio a "Iscritto": l'amministratore trova il modulo d'iscrizione già pronto in Diplomi
+    if (status === 'Iscritto' && prevStatus !== 'Iscritto' && isAdmin()) {
+        openEnrollmentFromContact(contact);
+    }
     
     // Messaggio di conferma con feedback di stato connessione
     if (isOnline) {
@@ -1717,6 +1857,7 @@ function deleteContact(id) {
 }
 
 function editCommunication(contactId, communicationId) {
+    if (!requireAdmin()) return;
     const contact = contactsDb.find(item => item.id === contactId);
     if (!contact) return;
     const comm = (contact.communications || []).find(item => item.id === communicationId);
@@ -2055,7 +2196,7 @@ const displayName = getContactFullName(contact);
                 <button class="btn btn-sm" onclick="editContact('${contact.id}')">✏️ Modifica / nuova nota</button>
                 <button class="btn btn-sm btn-danger admin-only" onclick="deleteContact('${contact.id}')">Elimina</button>
             </div>
-            <div class="comm-list">${communications.length ? communications.map(comm => `<div class="comm-entry"><time>${escapeHtml(formatItalianDateTime(comm.timestamp))}</time>${escapeHtml(comm.text)}<div style="text-align:right;margin-top:4px;display:flex;gap:4px;justify-content:flex-end;"><button class="btn btn-sm btn-outline" onclick="editCommunication('${contact.id}','${comm.id}')">✏️ Modifica nota</button><button class="btn btn-sm btn-outline admin-only" onclick="deleteCommunication('${contact.id}','${comm.id}')">Elimina nota</button></div></div>`).join('') : '<div class="contact-meta">Nessuna comunicazione registrata.</div>'}</div>
+            <div class="comm-list">${communications.length ? communications.map(comm => `<div class="comm-entry"><time>${escapeHtml(formatItalianDateTime(comm.timestamp))}${comm.author ? ' · ' + escapeHtml(comm.author) : ''}</time>${escapeHtml(comm.text)}<div style="text-align:right;margin-top:4px;display:flex;gap:4px;justify-content:flex-end;"><button class="btn btn-sm btn-outline admin-only" onclick="editCommunication('${contact.id}','${comm.id}')">✏️ Modifica nota</button><button class="btn btn-sm btn-outline admin-only" onclick="deleteCommunication('${contact.id}','${comm.id}')">Elimina nota</button></div></div>`).join('') : '<div class="contact-meta">Nessuna comunicazione registrata.</div>'}</div>
         </article>`;
     }).join('');
 }
@@ -2093,13 +2234,319 @@ function renderCalendar() {
         output += `<div class="calendar-day ${inMonth ? '' : 'other-month'} ${dateKey === today ? 'today' : ''}">
             <div class="calendar-day-number">${date.getDate()}</div>
             
-            ${events.map(contact => `<button class="calendar-event ${regionEventClass(contact.region)}" title="${escapeHtml(getContactFullName(contact))} · ${escapeHtml(contact.region)}" onclick="showPage('contatti');editContact('${contact.id}')">${escapeHtml(getContactFullName(contact))}</button>`).join('')}
+            ${events.map(contact => `<button class="calendar-event gest ${regionEventClass(contact.region)}" title="Preso dal gestionale · ${escapeHtml(getContactFullName(contact))} · ${escapeHtml(contact.region)}" onclick="showPage('contatti');editContact('${contact.id}')">${escapeHtml(getContactFullName(contact))}</button>`).join('')}${googleEventsForDay(dateKey)}
 
         </div>`;
     }
     grid.innerHTML = output;
-
+    renderUpcomingList();
+    ensureGoogleEvents();
 }
+
+
+// ---------- EVENTI DEI CALENDARI GOOGLE REGIONALI (sola lettura) ----------
+let googleEvents = [];
+let googleLoadedRange = null;
+let googleLoading = false;
+let googleFailed = { key: '', at: 0 };
+
+function addDays(date, n) { const d = new Date(date.getFullYear(), date.getMonth(), date.getDate() + n); return d; }
+
+function calendarFetchRange() {
+    const y = calendarCursor.getFullYear(), m = calendarCursor.getMonth();
+    const gridFrom = addDays(new Date(y, m, 1), -7);
+    const gridTo = addDays(new Date(y, m + 1, 0), 8);
+    const today = new Date();
+    const upTo = addDays(today, 61);
+    const from = gridFrom < today ? gridFrom : addDays(today, 0);
+    const to = gridTo > upTo ? gridTo : upTo;
+    return { from: localDateInputValue(from < gridFrom ? from : gridFrom), to: localDateInputValue(to) };
+}
+
+function setGoogleStatus(text) {
+    const el = document.getElementById('googleStatus');
+    if (el) el.textContent = text || '';
+}
+
+async function ensureGoogleEvents(force = false) {
+    const page = document.getElementById('page-calendario');
+    if (!page || !page.classList.contains('active')) return;
+    if (googleLoading) return;
+    const { from, to } = calendarFetchRange();
+    const key = from + '|' + to;
+    const fresh = googleLoadedRange && googleLoadedRange.from <= from && googleLoadedRange.to >= to && (Date.now() - googleLoadedRange.at < 5 * 60000);
+    if (!force && fresh) return;
+    if (!force && googleFailed.key === key && Date.now() - googleFailed.at < 60000) return;
+
+    googleLoading = true;
+    setGoogleStatus('Caricamento eventi da Google Calendar...');
+    const regions = Object.keys(REGION_SCRIPTS);
+    const results = await Promise.allSettled(regions.map(r => callRegionScript(r, { action: 'list', from, to })));
+    const events = [], errors = [];
+    results.forEach((res, i) => {
+        if (res.status === 'fulfilled' && res.value && Array.isArray(res.value.eventi)) {
+            res.value.eventi.forEach(ev => events.push({ ...ev, region: regions[i] }));
+        } else {
+            errors.push(regions[i]);
+        }
+    });
+    googleEvents = events;
+    googleLoading = false;
+    if (errors.length) {
+        googleFailed = { key, at: Date.now() };
+        setGoogleStatus('Eventi Google non disponibili per: ' + errors.join(', ') + ' (controlla che lo script della regione sia aggiornato).');
+    } else {
+        googleLoadedRange = { from, to, at: Date.now() };
+        googleFailed = { key: '', at: 0 };
+        setGoogleStatus('Eventi Google aggiornati alle ' + new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + '.');
+    }
+    renderCalendar();
+}
+
+// Esclude gli eventi Google che sono già appuntamenti del gestionale
+function visibleGoogleEvents() {
+    const gestIds = new Set(contactsDb.map(c => c.gcal_event_id).filter(Boolean));
+    return googleEvents.filter(ev => !gestIds.has(ev.id));
+}
+
+function googleEventCoversDay(ev, dateKey) {
+    const start = String(ev.start).slice(0, 10);
+    if (!ev.allDay) return start === dateKey;
+    const end = String(ev.end || '').slice(0, 10); // fine esclusa
+    return dateKey >= start && (end <= start ? dateKey === start : dateKey < end);
+}
+
+function googleEventsForDay(dateKey) {
+    return visibleGoogleEvents()
+        .filter(ev => googleEventCoversDay(ev, dateKey))
+        .sort((a, b) => String(a.start).localeCompare(String(b.start)))
+        .map(ev => {
+            const time = (!ev.allDay && String(ev.start).length > 10) ? String(ev.start).slice(11, 16) + ' ' : '';
+            return `<div class="calendar-event google ${regionEventClass(ev.region)}" onclick="openGoogleEvent('${escapeHtml(ev.region)}','${escapeHtml(ev.id)}')" title="${escapeHtml(ev.title)} · ${escapeHtml(ev.region)} · da Google Calendar (clic per modificare)">${escapeHtml(time + ev.title)}</div>`;
+        }).join('');
+}
+
+let editingGoogle = null;
+
+function openGoogleEvent(region, id) {
+    const ev = googleEvents.find(e => e.region === region && e.id === id);
+    if (!ev) return;
+    editingGoogle = ev;
+    document.getElementById('gevInfo').textContent = region + (ev.allDay ? ' · tutto il giorno' : ' · ore ' + String(ev.start).slice(11, 16))
+        + (ev.allDay && ev.end && ev.end.slice(0, 10) > addDaysKey(String(ev.start).slice(0, 10), 1) ? ' · evento su più giorni: spostando la data si sposta tutto' : '');
+    document.getElementById('gevTitle').value = ev.title || '';
+    document.getElementById('gevDate').value = String(ev.start).slice(0, 10);
+    document.getElementById('gevDesc').value = ev.description || '';
+    document.getElementById('gevMsg').textContent = '';
+    document.getElementById('gevModal').style.display = 'flex';
+}
+
+function addDaysKey(key, n) { const [y, m, d] = key.split('-').map(Number); return localDateInputValue(new Date(y, m - 1, d + n)); }
+
+function closeGoogleEventModal() {
+    document.getElementById('gevModal').style.display = 'none';
+    editingGoogle = null;
+}
+
+async function saveGoogleEvent() {
+    const ev = editingGoogle; if (!ev) return;
+    const title = document.getElementById('gevTitle').value.trim();
+    const date = document.getElementById('gevDate').value;
+    if (!title || !date) { document.getElementById('gevMsg').textContent = 'Titolo e data sono obbligatori.'; return; }
+    const payload = { action: 'edit', eventId: ev.id, title, description: document.getElementById('gevDesc').value };
+    if (date !== String(ev.start).slice(0, 10)) payload.date = date;
+    document.getElementById('gevMsg').textContent = 'Salvataggio...';
+    try {
+        await callRegionScript(ev.region, payload);
+        closeGoogleEventModal();
+        await ensureGoogleEvents(true);
+    } catch (err) {
+        document.getElementById('gevMsg').textContent = 'Non riuscito: ' + err.message + ' (lo script della regione è aggiornato alla v2 con "edit"?)';
+    }
+}
+
+async function deleteGoogleEvent() {
+    const ev = editingGoogle; if (!ev) return;
+    if (!confirm('Eliminare questo evento da Google Calendar (' + ev.region + ')?')) return;
+    document.getElementById('gevMsg').textContent = 'Eliminazione...';
+    try {
+        await callRegionScript(ev.region, { action: 'delete', eventId: ev.id });
+        closeGoogleEventModal();
+        await ensureGoogleEvents(true);
+    } catch (err) {
+        document.getElementById('gevMsg').textContent = 'Non riuscito: ' + err.message;
+    }
+}
+
+function renderUpcomingList() {
+    const el = document.getElementById('upcomingAppointments');
+    if (!el) return;
+    const today = localDateInputValue();
+    const colors = { Basilicata: '#c4a5fa', Calabria: '#4ade80', Puglia: '#60a5fa', Sicilia: '#fb923c' };
+    const items = [];
+    contactsDb.forEach(c => {
+        if (c.appointment && c.appointment.slice(0, 10) >= today) items.push({ kind: 'gest', sort: String(c.appointment), date: formatAppointmentDate(c.appointment), contact: c });
+    });
+    visibleGoogleEvents().forEach(ev => {
+        const d = String(ev.start).slice(0, 10);
+        if (d >= today) {
+            const time = (!ev.allDay && String(ev.start).length > 10) ? ' ' + String(ev.start).slice(11, 16) : '';
+            items.push({ kind: 'google', sort: String(ev.start), date: formatAppointmentDate(d) + time, ev });
+        }
+    });
+    items.sort((a, b) => a.sort.localeCompare(b.sort));
+    const shown = items.slice(0, 20);
+    el.innerHTML = shown.length ? shown.map(it => {
+        if (it.kind === 'gest') {
+            const c = it.contact;
+            return `<div class="contact-item">
+                <div class="contact-top"><strong><i class="type-dot" style="background:${colors[c.region] || '#94a3b8'}"></i>${escapeHtml(getContactFullName(c))}</strong><span><strong>${escapeHtml(it.date)}</strong><span class="src-badge src-gest">Gestionale</span></span></div>
+                <div class="contact-meta">${escapeHtml(c.region || '')} ${c.phone ? '· 📞 ' + escapeHtml(c.phone) : ''} · ${escapeHtml(c.status || '')}</div>
+                <div class="contact-actions"><button class="btn btn-sm" onclick="showPage('contatti');editContact('${c.id}')">Apri contatto</button></div>
+            </div>`;
+        }
+        const ev = it.ev;
+        return `<div class="contact-item">
+            <div class="contact-top"><span><i class="type-dot" style="background:${colors[ev.region] || '#94a3b8'}"></i>${escapeHtml(ev.title)}</span><span>${escapeHtml(it.date)}<span class="src-badge src-google">Google Calendar</span></span></div>
+            <div class="contact-meta">${escapeHtml(ev.region)}</div>
+            <div class="contact-actions"><button class="btn btn-sm" onclick="openGoogleEvent('${escapeHtml(ev.region)}','${escapeHtml(ev.id)}')">Modifica</button></div>
+        </div>`;
+    }).join('') : '<div class="empty-state">Non ci sono appuntamenti futuri.</div>';
+}
+
+// ---------- BACHECA ----------
+let bachecaItems = [];
+const BOARD_RANK = { 'Urgente': 0, 'Entro la giornata': 1, 'Week end': 1, 'Entro la settimana': 2, 'Rata': 2 };
+const BOARD_BADGE = { 'Urgente': 'b-urgente', 'Entro la giornata': 'b-giornata', 'Entro la settimana': 'b-settimana', 'Week end': 'b-weekend', 'Rata': 'b-rata' };
+
+function myBoardRole() { return isAdmin() ? 'admin' : 'collaboratore'; }
+
+function setBoardStatus(text) {
+    const el = document.getElementById('boardStatus');
+    if (el) el.textContent = text || '';
+}
+
+function initBoardDefaults() {
+    // Di norma si scrive all'altra persona: l'admin al collaboratore e viceversa
+    const other = isAdmin() ? 'collaboratore' : 'admin';
+    document.querySelectorAll('select.boardFor').forEach(sel => { sel.value = other; });
+}
+
+async function loadBacheca() {
+    if (!currentUser) return;
+    const { data, error } = await supabaseClient.from('bacheca').select('*').order('creato_il', { ascending: false }).limit(500);
+    if (error) {
+        setBoardStatus('Bacheca non disponibile: ' + error.message);
+        return;
+    }
+    setBoardStatus('');
+    bachecaItems = data || [];
+    renderBacheca();
+}
+
+function boardSort(a, b) {
+    const ra = BOARD_RANK[a.priorita] ?? 3, rb = BOARD_RANK[b.priorita] ?? 3;
+    if (ra !== rb) return ra - rb;
+    return String(a.creato_il).localeCompare(String(b.creato_il));
+}
+
+function renderBacheca() {
+    const showDone = !!document.getElementById('boardShowDone')?.checked;
+    const myRole = myBoardRole();
+    const me = currentUser ? currentUser.id : null;
+
+    ['da_fare', 'da_ricordare', 'pagamenti'].forEach(sec => {
+        const all = bachecaItems.filter(i => i.sezione === sec);
+        const open = all.filter(i => !i.completato).sort(boardSort);
+        const done = showDone ? all.filter(i => i.completato).sort((a, b) => String(b.completato_il).localeCompare(String(a.completato_il))) : [];
+        document.getElementById('count-' + sec).textContent = open.length;
+        const list = document.getElementById('list-' + sec);
+        const cards = [...open, ...done].map(item => {
+            const forMe = sec !== 'pagamenti' && item.destinatario === myRole;
+            const badges = [];
+            if (item.priorita) badges.push(`<span class="bbadge ${BOARD_BADGE[item.priorita] || ''}">${escapeHtml(item.priorita)}</span>`);
+            if (sec !== 'pagamenti') {
+                badges.push(`<span class="bbadge ${item.destinatario === 'admin' ? 'b-admin' : 'b-collab'}">Per: ${item.destinatario === 'admin' ? 'Amministratore' : 'Collaboratori'}</span>`);
+                if (forMe && !item.completato) badges.push('<span class="bbadge b-perte">Per te</span>');
+            }
+            let body;
+            if (sec === 'pagamenti') {
+                const phone = item.telefono ? ` · 📞 <a href="tel:${escapeHtml(item.telefono)}" style="color:var(--primary);text-decoration:none;">${escapeHtml(item.telefono)}</a>` : '';
+                body = `<div class="board-text"><strong>${escapeHtml(item.cognome || '')} ${escapeHtml(item.nome || '')}</strong>${phone}${item.testo ? '<br>' + escapeHtml(item.testo) : ''}</div>`;
+            } else {
+                body = `<div class="board-text">${escapeHtml(item.testo || '')}</div>`;
+            }
+            const meta = `Creato da ${escapeHtml(item.creato_da_nome || 'sconosciuto')} · ${escapeHtml(formatItalianDateTime(item.creato_il))}`
+                + (item.completato ? `<br>✔ Completato da ${escapeHtml(item.completato_da || '')} · ${escapeHtml(formatItalianDateTime(item.completato_il))}` : '');
+            const canDelete = isAdmin() || item.creato_da === me;
+            return `<div class="board-item ${forMe && !item.completato ? 'for-me' : ''} ${item.completato ? 'done' : ''}">
+                <div class="board-badges">${badges.join('')}</div>
+                ${body}
+                <div class="board-meta">${meta}</div>
+                <div class="board-actions">
+                    ${item.completato
+                        ? `<button class="btn btn-sm btn-outline" onclick="completeBacheca('${item.id}', false)">↩ Riapri</button>`
+                        : `<button class="btn btn-sm btn-success" onclick="completeBacheca('${item.id}', true)">✔ Fatto</button>`}
+                    ${canDelete ? `<button class="btn btn-sm btn-danger" onclick="deleteBacheca('${item.id}')">Elimina</button>` : ''}
+                </div>
+            </div>`;
+        });
+        list.innerHTML = cards.length ? cards.join('') : '<div class="empty-state">Niente qui.</div>';
+    });
+
+    // Contatore sul menu: cose aperte rivolte a me
+    const mine = bachecaItems.filter(i => !i.completato && i.sezione !== 'pagamenti' && i.destinatario === myRole).length;
+    const badge = document.getElementById('navBachecaCount');
+    if (badge) { badge.textContent = mine; badge.style.display = mine ? 'inline-block' : 'none'; }
+}
+
+async function addBachecaItem(event, sec) {
+    event.preventDefault();
+    const val = id => (document.getElementById(id)?.value || '').trim();
+    const row = { sezione: sec, creato_da_nome: currentUserName };
+    if (sec === 'pagamenti') {
+        row.cognome = val('f-pagamenti-cognome');
+        row.nome = val('f-pagamenti-nome');
+        row.telefono = val('f-pagamenti-telefono') || null;
+        row.priorita = val('f-pagamenti-priorita');
+        row.testo = val('f-pagamenti-testo') || null;
+        if (!row.cognome || !row.nome) { alert('Inserisci cognome e nome.'); return; }
+    } else {
+        row.testo = val('f-' + sec + '-testo');
+        row.destinatario = val('f-' + sec + '-dest');
+        if (sec === 'da_fare') row.priorita = val('f-da_fare-priorita');
+        if (!row.testo) { alert('Scrivi il testo della nota.'); return; }
+    }
+    const { error } = await supabaseClient.from('bacheca').insert(row);
+    if (error) { alert('Salvataggio non riuscito: ' + error.message); return; }
+    event.target.reset();
+    initBoardDefaults();
+    const det = document.getElementById('add-' + sec);
+    if (det) det.open = false;
+    loadBacheca();
+}
+
+async function completeBacheca(id, done) {
+    const { error } = await supabaseClient.from('bacheca').update({
+        completato: done,
+        completato_da: done ? currentUserName : null,
+        completato_il: done ? new Date().toISOString() : null
+    }).eq('id', id);
+    if (error) { alert('Operazione non riuscita: ' + error.message); return; }
+    loadBacheca();
+}
+
+async function deleteBacheca(id) {
+    if (!confirm('Eliminare questa nota dalla bacheca?')) return;
+    const { error } = await supabaseClient.from('bacheca').delete().eq('id', id);
+    if (error) { alert('Eliminazione non riuscita: ' + error.message); return; }
+    loadBacheca();
+}
+
+setInterval(() => {
+    const page = document.getElementById('page-bacheca');
+    if (currentUser && !document.hidden && page && page.classList.contains('active')) loadBacheca();
+}, 60000);
 
 function updateHomeCounters() {
     const contactsCount = document.getElementById('homeContactCount');
@@ -2182,6 +2629,7 @@ function toggleContactForm() {
 // ---------- ACCESSO E RUOLI ----------
 let currentUser = null;
 let currentRole = null;
+let currentUserName = '';
 let loggingOut = false;
 
 function isAdmin() { return currentRole === 'admin'; }
@@ -2232,7 +2680,11 @@ async function handleLogin(event) {
 }
 
 async function startSession(session) {
-    const { data, error } = await supabaseClient.from('utenti_ruoli').select('ruolo').eq('user_id', session.user.id).maybeSingle();
+    let { data, error } = await supabaseClient.from('utenti_ruoli').select('ruolo,nome').eq('user_id', session.user.id).maybeSingle();
+    if (error) {
+        // se la colonna "nome" non esiste ancora, riprova solo con il ruolo
+        ({ data, error } = await supabaseClient.from('utenti_ruoli').select('ruolo').eq('user_id', session.user.id).maybeSingle());
+    }
     if (error) {
         showAuthError('Impossibile verificare il ruolo: ' + error.message);
         return;
@@ -2247,10 +2699,12 @@ async function startSession(session) {
     }
     currentUser = session.user;
     currentRole = data.ruolo;
+    currentUserName = String(data.nome || '').trim() || String(session.user.email || '').split('@')[0];
     document.body.classList.toggle('role-admin', isAdmin());
     document.body.classList.toggle('role-collab', !isAdmin());
     document.getElementById('userInfo').textContent = `${currentUser.email} · ${isAdmin() ? 'Amministratore' : 'Collaboratore'}`;
     document.getElementById('authOverlay').style.display = 'none';
+    initBoardDefaults();
     document.getElementById('loginPassword').value = '';
     startApp();
 }
@@ -2283,6 +2737,7 @@ function startApp() {
 
     // Poi scarica e sincronizza da Supabase
     loadDataFromSupabase();
+    loadBacheca();
     resetContactForm();
     renderContacts();
     renderCalendar();
