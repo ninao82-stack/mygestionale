@@ -706,6 +706,7 @@ function getDiplomaGroup(diplomaStr) {
 }
 
 // ---------- SALVATAGGIO DIPLOMI SU SUPABASE ----------
+let lastDisplayedDiplomi = [];   // righe nell'ordine in cui sono mostrate in tabella
 const DIPLOMI_COLUMNS = ['nome', 'cognome', 'diploma', 'regione', 'data', 'pagamento', 'note'];
 let diplomiCloudReady = false;          // diventa true solo dopo un caricamento riuscito da Supabase
 const diplomiSnapshot = new Map();      // id -> contenuto salvato sul cloud
@@ -1185,6 +1186,7 @@ function renderTable() {
     const tbody = document.getElementById('tableBody');
     tbody.innerHTML = '';
 
+    lastDisplayedDiplomi = filtered;
     filtered.forEach((item) => {
         const realIndex = db.indexOf(item);
         const tr = document.createElement('tr');
@@ -1199,6 +1201,7 @@ function renderTable() {
             <td>${item.note ? `<span class="badge ${item.note === 'Azione Legale' ? 'badge-legale' : item.note === 'Integrazione' ? 'badge-integrazione' : ''}">${item.note}</span>` : ''}</td>
             <td>
                 <button class="btn btn-warning btn-sm" onclick="openEditForm(${realIndex})">✏️ Modifica</button>
+                <button class="btn btn-outline btn-sm admin-only" title="Inverte nome e cognome di questa riga e di tutte quelle sotto, nell'ordine mostrato" onclick="swapNamesFrom(${realIndex})">⇄ Inverti da qui in giù</button>
                 <button class="btn btn-danger btn-sm admin-only" onclick="deleteClient(${realIndex})">🗑️ Elimina</button>
             </td>
         `;
@@ -1307,6 +1310,33 @@ function saveEditClient(e) {
 
     saveData();
     closeEditForm();
+}
+
+// Inverte nome e cognome della riga scelta e di tutte quelle sotto (nell'ordine mostrato in tabella)
+function swapNamesFrom(realIndex) {
+    if (!requireAdmin()) return;
+    const start = lastDisplayedDiplomi.indexOf(db[realIndex]);
+    if (start === -1) return;
+    const rows = lastDisplayedDiplomi.slice(start);
+    const swappable = rows.filter(r => String(r.nome || '').trim() && String(r.cognome || '').trim());
+    const skipped = rows.length - swappable.length;
+    if (!swappable.length) {
+        alert('Nessuna riga da invertire: servono sia nome sia cognome.');
+        return;
+    }
+    const first = rows[0], last = rows[rows.length - 1];
+    const msg = `Verranno invertiti nome e cognome di ${swappable.length} righe, da "${first.nome} ${first.cognome}" fino a "${last.nome} ${last.cognome}" (nell'ordine mostrato in tabella).`
+        + (skipped ? `\n${skipped} righe senza nome o cognome verranno lasciate com'erano.` : '')
+        + '\n\nProcedere?';
+    if (!confirm(msg)) return;
+    swappable.forEach(r => {
+        const tmp = r.nome;
+        r.nome = r.cognome;
+        r.cognome = tmp;
+        r.nomeCompleto = `${r.nome} ${r.cognome}`.trim();
+    });
+    saveData();
+    alert(`Invertite ${swappable.length} righe. Se hai sbagliato, premi di nuovo "Inverti da qui in giù" sulla stessa riga per annullare.`);
 }
 
 function deleteClient(index) {
