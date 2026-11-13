@@ -162,11 +162,11 @@
         .board-item.done .board-text { text-decoration: line-through; }
         .board-badges { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
         .bbadge { font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px; background:#e2e8f0; color:#334155; }
-        .b-urgente { background:#fee2e2; color:#b91c1c; }
-        .b-giornata { background:#ffedd5; color:#c2410c; }
+        .b-urgente { background:#dc2626; color:#fff; }
+        .b-giornata { background:#fef08a; color:#854d0e; }
         .b-settimana { background:#dbeafe; color:#1d4ed8; }
-        .b-weekend { background:#ede9fe; color:#6d28d9; }
-        .b-rata { background:#e2e8f0; color:#334155; }
+        .b-weekend { background:#fef08a; color:#854d0e; }
+        .b-rata { background:#dbeafe; color:#1d4ed8; }
         .b-admin { background:#1e293b; color:#fff; }
         .b-collab { background:#0f766e; color:#fff; }
         .b-perte { background:#2563eb; color:#fff; }
@@ -204,10 +204,10 @@
 
 <nav class="main-nav" aria-label="Navigazione gestionale">
     <button class="nav-btn active" id="nav-home" onclick="showPage('home')">⌂ Home</button>
+    <button class="nav-btn" id="nav-bacheca" onclick="showPage('bacheca')">📌 Bacheca<span id="navBachecaCount"></span></button>
+    <button class="nav-btn" id="nav-calendario" onclick="showPage('calendario')">📅 Calendario</button>
     <button class="nav-btn" id="nav-contatti" onclick="showPage('contatti')">👥 Contatti</button>
     <button class="nav-btn admin-only" id="nav-diplomi" onclick="showPage('diplomi')">🎓 Diplomi</button>
-    <button class="nav-btn" id="nav-calendario" onclick="showPage('calendario')">📅 Calendario</button>
-    <button class="nav-btn" id="nav-bacheca" onclick="showPage('bacheca')">📌 Bacheca<span id="navBachecaCount"></span></button>
     <!-- INDICATORE STATO -->
     <div id="dbStatusBadge" style="margin-left:auto; font-size:12px; font-weight:600; padding:6px 12px; border-radius:20px; background:#fef3c7; color:#92400e;">
         🟡 Connessione DB in corso...
@@ -221,6 +221,15 @@
             <h1>Gestionale</h1>
             <p style="color:var(--text-muted);margin-top:8px;">Scegli l’area di lavoro. I dati di Contatti e Diplomi sono archiviati separatamente nel browser.</p>
             <div class="home-grid">
+                <div class="card home-tile" onclick="showPage('bacheca')">
+                    <div style="font-size:30px;">📌</div><h2>Bacheca</h2>
+                    <p>Compiti, promemoria e scadenze di pagamento condivisi con il collaboratore.</p>
+                </div>
+                <div class="card home-tile" onclick="showPage('calendario')">
+                    <div style="font-size:30px;">📅</div><h2>Calendario</h2>
+                    <p>Visualizza gli appuntamenti dei contatti, distinti per regione.</p>
+                    <strong id="homeAppointmentCount">0 appuntamenti</strong>
+                </div>
                 <div class="card home-tile" onclick="showPage('contatti')">
                     <div style="font-size:30px;">👥</div><h2>Contatti</h2>
                     <p>Gestisci anagrafiche, comunicazioni con data e ora, stato e appuntamenti.</p>
@@ -229,15 +238,6 @@
                 <div class="card home-tile admin-only" onclick="showPage('diplomi')">
                     <div style="font-size:30px;">🎓</div><h2>Diplomi</h2>
                     <p>Accedi al gestionale esistente, inclusi importazione, esportazione e statistiche.</p>
-                </div>
-                <div class="card home-tile" onclick="showPage('calendario')">
-                    <div style="font-size:30px;">📅</div><h2>Calendario</h2>
-                    <p>Visualizza gli appuntamenti dei contatti, distinti per regione.</p>
-                    <strong id="homeAppointmentCount">0 appuntamenti</strong>
-                </div>
-                <div class="card home-tile" onclick="showPage('bacheca')">
-                    <div style="font-size:30px;">📌</div><h2>Bacheca</h2>
-                    <p>Compiti, promemoria e scadenze di pagamento condivisi con il collaboratore.</p>
                 </div>
             </div>
         </div>
@@ -401,8 +401,8 @@
                 <div class="form-group">
                     <label>Pagamento</label>
                     <select id="newPagamento">
-                        <option value="PAGATO">PAGATO</option>
                         <option value="">NON PAGATO</option>
+                        <option value="PAGATO">PAGATO</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -620,7 +620,7 @@
                         <div class="form-group"><label>Priorità</label>
                             <select id="f-da_fare-priorita"><option>Urgente</option><option>Entro la giornata</option><option selected>Entro la settimana</option></select></div>
                         <div class="form-group"><label>Rivolto a</label>
-                            <select id="f-da_fare-dest" class="boardFor"><option value="admin">Amministratore</option><option value="collaboratore">Collaboratori</option></select></div>
+                            <select id="f-da_fare-dest" class="boardFor"></select></div>
                         <button class="btn btn-success" type="submit">Aggiungi</button>
                     </form>
                 </details>
@@ -632,7 +632,7 @@
                     <form onsubmit="addBachecaItem(event, 'da_ricordare')">
                         <textarea id="f-da_ricordare-testo" required placeholder="Es. mandare mail hotel; allievo X problematico..."></textarea>
                         <div class="form-group"><label>Rivolto a</label>
-                            <select id="f-da_ricordare-dest" class="boardFor"><option value="admin">Amministratore</option><option value="collaboratore">Collaboratori</option></select></div>
+                            <select id="f-da_ricordare-dest" class="boardFor"></select></div>
                         <button class="btn btn-success" type="submit">Aggiungi</button>
                     </form>
                 </details>
@@ -2426,10 +2426,36 @@ function setBoardStatus(text) {
     if (el) el.textContent = text || '';
 }
 
+let staffList = [];
+
+async function loadStaff() {
+    const { data, error } = await supabaseClient.rpc('elenco_staff');
+    if (error || !Array.isArray(data) || !data.length) {
+        // script C_destinatari.sql non ancora eseguito: ripiego sui ruoli
+        staffList = [
+            { user_id: 'role:admin', nome: 'Amministratore', ruolo: 'admin' },
+            { user_id: 'role:collaboratore', nome: 'Collaboratori', ruolo: 'collaboratore' }
+        ];
+    } else {
+        staffList = data.slice().sort((a, b) => (a.ruolo === b.ruolo ? String(a.nome).localeCompare(String(b.nome)) : (a.ruolo === 'admin' ? -1 : 1)));
+    }
+    initBoardDefaults();
+}
+
 function initBoardDefaults() {
-    // Di norma si scrive all'altra persona: l'admin al collaboratore e viceversa
-    const other = isAdmin() ? 'collaboratore' : 'admin';
-    document.querySelectorAll('select.boardFor').forEach(sel => { sel.value = other; });
+    // Di norma si scrive a un'altra persona: preselezionata la prima diversa da me
+    const me = currentUser ? currentUser.id : null;
+    const def = staffList.find(u => u.user_id !== me) || staffList[0];
+    document.querySelectorAll('select.boardFor').forEach(sel => {
+        const keep = sel.value;
+        sel.innerHTML = staffList.map(u => `<option value="${escapeHtml(u.user_id)}">${escapeHtml(u.nome)}${u.ruolo === 'admin' ? ' (amministratore)' : ''}</option>`).join('');
+        sel.value = (keep && staffList.some(u => u.user_id === keep)) ? keep : (def ? def.user_id : '');
+    });
+}
+
+function boardForMe(item) {
+    if (item.destinatario_id) return item.destinatario_id === (currentUser ? currentUser.id : null);
+    return item.destinatario === myBoardRole();
 }
 
 async function loadBacheca() {
@@ -2462,11 +2488,11 @@ function renderBacheca() {
         document.getElementById('count-' + sec).textContent = open.length;
         const list = document.getElementById('list-' + sec);
         const cards = [...open, ...done].map(item => {
-            const forMe = sec !== 'pagamenti' && item.destinatario === myRole;
+            const forMe = sec !== 'pagamenti' && boardForMe(item);
             const badges = [];
             if (item.priorita) badges.push(`<span class="bbadge ${BOARD_BADGE[item.priorita] || ''}">${escapeHtml(item.priorita)}</span>`);
             if (sec !== 'pagamenti') {
-                badges.push(`<span class="bbadge ${item.destinatario === 'admin' ? 'b-admin' : 'b-collab'}">Per: ${item.destinatario === 'admin' ? 'Amministratore' : 'Collaboratori'}</span>`);
+                badges.push(`<span class="bbadge ${item.destinatario === 'admin' ? 'b-admin' : 'b-collab'}">Per: ${escapeHtml(item.destinatario_nome || (item.destinatario === 'admin' ? 'Amministratore' : 'Collaboratori'))}</span>`);
                 if (forMe && !item.completato) badges.push('<span class="bbadge b-perte">Per te</span>');
             }
             let body;
@@ -2495,7 +2521,7 @@ function renderBacheca() {
     });
 
     // Contatore sul menu: cose aperte rivolte a me
-    const mine = bachecaItems.filter(i => !i.completato && i.sezione !== 'pagamenti' && i.destinatario === myRole).length;
+    const mine = bachecaItems.filter(i => !i.completato && i.sezione !== 'pagamenti' && boardForMe(i)).length;
     const badge = document.getElementById('navBachecaCount');
     if (badge) { badge.textContent = mine; badge.style.display = mine ? 'inline-block' : 'none'; }
 }
@@ -2513,7 +2539,11 @@ async function addBachecaItem(event, sec) {
         if (!row.cognome || !row.nome) { alert('Inserisci cognome e nome.'); return; }
     } else {
         row.testo = val('f-' + sec + '-testo');
-        row.destinatario = val('f-' + sec + '-dest');
+        const chosen = staffList.find(u => u.user_id === val('f-' + sec + '-dest'));
+        if (!chosen) { alert('Scegli a chi è rivolta la nota.'); return; }
+        row.destinatario = chosen.ruolo;
+        row.destinatario_nome = chosen.nome;
+        row.destinatario_id = chosen.user_id.startsWith('role:') ? null : chosen.user_id;
         if (sec === 'da_fare') row.priorita = val('f-da_fare-priorita');
         if (!row.testo) { alert('Scrivi il testo della nota.'); return; }
     }
@@ -2704,7 +2734,7 @@ async function startSession(session) {
     document.body.classList.toggle('role-collab', !isAdmin());
     document.getElementById('userInfo').textContent = `${currentUser.email} · ${isAdmin() ? 'Amministratore' : 'Collaboratore'}`;
     document.getElementById('authOverlay').style.display = 'none';
-    initBoardDefaults();
+    loadStaff();
     document.getElementById('loginPassword').value = '';
     startApp();
 }
