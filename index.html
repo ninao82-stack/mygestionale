@@ -256,44 +256,6 @@
     </div>
 
     <!-- Modal Opzioni Importazione -->
-    <div id="staffModal" class="modal">
-        <div class="modal-content" style="max-height:90vh;overflow-y:auto;max-width:560px;">
-            <h3>Collaboratori</h3>
-            <p style="font-size:13px;color:#64748b;margin-bottom:10px;">Il nome e cognome che imposti qui compare nel menu "Rivolto a" della Bacheca e come autore delle note.</p>
-            <div id="staffRows"></div>
-            <hr style="margin:14px 0;border:0;border-top:1px solid #e2e8f0;">
-            <h4 style="margin-bottom:8px;">➕ Nuovo collaboratore</h4>
-            <div class="form-grid">
-                <div class="form-group"><label>Nome</label><input type="text" id="newStaffNome"></div>
-                <div class="form-group"><label>Cognome</label><input type="text" id="newStaffCognome"></div>
-                <div class="form-group"><label>Email di accesso</label><input type="email" id="newStaffEmail"></div>
-                <div class="form-group"><label>Password (min. 8 caratteri)</label><input type="text" id="newStaffPassword" autocomplete="off"></div>
-            </div>
-            <button class="btn" onclick="createStaff()">Crea collaboratore</button>
-            <div id="staffMsg" style="font-size:13px;color:#b91c1c;min-height:18px;margin-top:8px;"></div>
-            <div class="modal-actions" style="flex-direction:row;">
-                <button class="btn btn-outline" onclick="document.getElementById('staffModal').style.display='none'">Chiudi</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="gevModal" class="modal">
-        <div class="modal-content" style="max-height:90vh;overflow-y:auto;max-width:620px;">
-            <h3>Evento Google Calendar</h3>
-            <div id="gevInfo" style="font-size:13px;color:#64748b;margin-bottom:10px;"></div>
-            <div class="form-group"><label>Titolo</label><textarea id="gevTitle" rows="2"></textarea></div>
-            <div id="gevLoc" style="font-size:13px;margin-bottom:10px;"></div>
-            <div class="form-group"><label>Data</label><input type="date" id="gevDate"></div>
-            <div class="form-group"><label>Descrizione</label><textarea id="gevDesc" rows="8"></textarea></div>
-            <div id="gevMsg" style="font-size:13px;color:#b91c1c;min-height:18px;"></div>
-            <div class="modal-actions" style="flex-direction:row;flex-wrap:wrap;">
-                <button class="btn btn-success" id="gevSave" onclick="saveGoogleEvent()">Salva</button>
-                <button class="btn btn-danger" id="gevDelete" onclick="deleteGoogleEvent()">Elimina</button>
-                <button class="btn btn-outline" onclick="closeGoogleEventModal()">Annulla</button>
-            </div>
-        </div>
-    </div>
-
     <div id="importModal" class="modal">
         <div class="modal-content">
             <h3>📥 Opzioni Importazione Excel</h3>
@@ -708,6 +670,44 @@
         </div>
     </section>
 </div>
+
+    <div id="staffModal" class="modal">
+        <div class="modal-content" style="max-height:90vh;overflow-y:auto;max-width:560px;">
+            <h3>Collaboratori</h3>
+            <p style="font-size:13px;color:#64748b;margin-bottom:10px;">Il nome e cognome che imposti qui compare nel menu "Rivolto a" della Bacheca e come autore delle note.</p>
+            <div id="staffRows"></div>
+            <hr style="margin:14px 0;border:0;border-top:1px solid #e2e8f0;">
+            <h4 style="margin-bottom:8px;">➕ Nuovo collaboratore</h4>
+            <div class="form-grid">
+                <div class="form-group"><label>Nome</label><input type="text" id="newStaffNome"></div>
+                <div class="form-group"><label>Cognome</label><input type="text" id="newStaffCognome"></div>
+                <div class="form-group"><label>Email di accesso</label><input type="email" id="newStaffEmail"></div>
+                <div class="form-group"><label>Password (min. 8 caratteri)</label><input type="text" id="newStaffPassword" autocomplete="off"></div>
+            </div>
+            <button class="btn" onclick="createStaff()">Crea collaboratore</button>
+            <div id="staffMsg" style="font-size:13px;color:#b91c1c;min-height:18px;margin-top:8px;"></div>
+            <div class="modal-actions" style="flex-direction:row;">
+                <button class="btn btn-outline" onclick="document.getElementById('staffModal').style.display='none'">Chiudi</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="gevModal" class="modal">
+        <div class="modal-content" style="max-height:90vh;overflow-y:auto;max-width:620px;">
+            <h3>Evento Google Calendar</h3>
+            <div id="gevInfo" style="font-size:13px;color:#64748b;margin-bottom:10px;"></div>
+            <div class="form-group"><label>Titolo</label><textarea id="gevTitle" rows="2"></textarea></div>
+            <div id="gevLoc" style="font-size:13px;margin-bottom:10px;"></div>
+            <div class="form-group"><label>Data</label><input type="date" id="gevDate"></div>
+            <div class="form-group"><label>Descrizione</label><textarea id="gevDesc" rows="8"></textarea></div>
+            <div id="gevMsg" style="font-size:13px;color:#b91c1c;min-height:18px;"></div>
+            <div class="modal-actions" style="flex-direction:row;flex-wrap:wrap;">
+                <button class="btn btn-success" id="gevSave" onclick="saveGoogleEvent()">Salva</button>
+                <button class="btn btn-danger" id="gevDelete" onclick="deleteGoogleEvent()">Elimina</button>
+                <button class="btn btn-outline" onclick="closeGoogleEventModal()">Annulla</button>
+            </div>
+        </div>
+    </div>
 
 <script>
 let db = [];
@@ -2356,20 +2356,23 @@ function googleEventCoversDay(ev, dateKey) {
 }
 
 function googleEventsForDay(dateKey) {
-    return visibleGoogleEvents()
-        .filter(ev => googleEventCoversDay(ev, dateKey))
+    return googleEvents.map((ev, idx) => ({ ev, idx }))
+        .filter(x => visibleGoogleEvents().includes(x.ev) && googleEventCoversDay(x.ev, dateKey))
+        .map(x => Object.assign({}, x.ev, { _idx: x.idx }))
         .sort((a, b) => String(a.start).localeCompare(String(b.start)))
         .map(ev => {
             const time = (!ev.allDay && String(ev.start).length > 10) ? String(ev.start).slice(11, 16) + ' ' : '';
-            return `<div class="calendar-event google ${regionEventClass(ev.region)}" onclick="openGoogleEvent('${escapeHtml(ev.region)}','${escapeHtml(ev.id)}')" title="${escapeHtml(ev.title)} · ${escapeHtml(ev.region)} · da Google Calendar (clic per modificare)">${escapeHtml(time + ev.title)}</div>`;
+            return `<div class="calendar-event google ${regionEventClass(ev.region)}" onclick="openGoogleEvent(${ev._idx})" title="${escapeHtml(ev.title)} · ${escapeHtml(ev.region)} · da Google Calendar (clic per modificare)">${escapeHtml(time + ev.title)}</div>`;
         }).join('');
 }
 
 let editingGoogle = null;
 
-function openGoogleEvent(region, id) {
-    const ev = googleEvents.find(e => e.region === region && e.id === id);
-    if (!ev) return;
+function openGoogleEvent(idx) {
+  try {
+    const ev = googleEvents[idx];
+    if (!ev) { alert('Evento non trovato: premi "Aggiorna da Google" e riprova.'); return; }
+    const region = ev.region;
     editingGoogle = ev;
     document.getElementById('gevInfo').textContent = region + (ev.allDay ? ' · tutto il giorno' : ' · ore ' + String(ev.start).slice(11, 16))
         + (ev.allDay && ev.end && ev.end.slice(0, 10) > addDaysKey(String(ev.start).slice(0, 10), 1) ? ' · evento su più giorni: spostando la data si sposta tutto' : '');
@@ -2379,6 +2382,9 @@ function openGoogleEvent(region, id) {
     document.getElementById('gevLoc').innerHTML = ev.location ? '📍 <strong>Luogo:</strong> ' + escapeHtml(ev.location) : '';
     document.getElementById('gevMsg').textContent = '';
     document.getElementById('gevModal').style.display = 'flex';
+  } catch (err) {
+    alert('Impossibile aprire l\'evento: ' + err.message);
+  }
 }
 
 function addDaysKey(key, n) { const [y, m, d] = key.split('-').map(Number); return localDateInputValue(new Date(y, m - 1, d + n)); }
