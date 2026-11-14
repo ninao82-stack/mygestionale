@@ -256,6 +256,19 @@
     </div>
 
     <!-- Modal Opzioni Importazione -->
+    <div id="staffModal" class="modal">
+        <div class="modal-content">
+            <h3>Nomi dei collaboratori</h3>
+            <p style="font-size:13px;color:#64748b;margin-bottom:10px;">Questi nomi compaiono nell'elenco "Rivolto a" della Bacheca e come autore delle note.</p>
+            <div id="staffRows"></div>
+            <div id="staffMsg" style="font-size:13px;color:#b91c1c;min-height:18px;margin-top:8px;"></div>
+            <div class="modal-actions" style="flex-direction:row;">
+                <button class="btn btn-success" onclick="saveStaffNames()">Salva</button>
+                <button class="btn btn-outline" onclick="document.getElementById('staffModal').style.display='none'">Chiudi</button>
+            </div>
+        </div>
+    </div>
+
     <div id="gevModal" class="modal">
         <div class="modal-content">
             <h3>Evento Google Calendar</h3>
@@ -608,6 +621,7 @@
             <h1>Bacheca</h1>
             <div class="header-actions">
                 <label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" id="boardShowDone" style="width:auto;" onchange="renderBacheca()"> Mostra completati</label>
+                <button class="btn btn-outline admin-only" onclick="openStaffNames()">👥 Nomi collaboratori</button>
                 <button class="btn btn-outline" onclick="loadBacheca()">🔄 Aggiorna</button>
             </div>
         </div>
@@ -2428,6 +2442,31 @@ function setBoardStatus(text) {
 }
 
 let staffList = [];
+
+async function openStaffNames() {
+    if (!requireAdmin()) return;
+    const msg = document.getElementById('staffMsg');
+    msg.textContent = 'Caricamento...';
+    document.getElementById('staffModal').style.display = 'flex';
+    const { data, error } = await supabaseClient.rpc('elenco_staff_admin');
+    if (error) { msg.textContent = 'Non disponibile: esegui prima lo script D_nomi.sql in Supabase (' + error.message + ')'; document.getElementById('staffRows').innerHTML = ''; return; }
+    msg.textContent = '';
+    document.getElementById('staffRows').innerHTML = (data || []).map(u => `
+        <div class="form-group"><label>${escapeHtml(u.email)} · ${u.ruolo === 'admin' ? 'Amministratore' : 'Collaboratore'}</label>
+        <input type="text" class="staffNameInput" data-uid="${escapeHtml(u.user_id)}" value="${escapeHtml(u.nome || '')}" placeholder="Nome (es. Luca)"></div>`).join('');
+}
+
+async function saveStaffNames() {
+    const msg = document.getElementById('staffMsg');
+    msg.textContent = 'Salvataggio...';
+    for (const input of document.querySelectorAll('.staffNameInput')) {
+        const { error } = await supabaseClient.rpc('imposta_nome', { p_user: input.dataset.uid, p_nome: input.value });
+        if (error) { msg.textContent = 'Non riuscito: ' + error.message; return; }
+        if (currentUser && input.dataset.uid === currentUser.id && input.value.trim()) currentUserName = input.value.trim();
+    }
+    document.getElementById('staffModal').style.display = 'none';
+    await loadStaff();
+}
 
 async function loadStaff() {
     const { data, error } = await supabaseClient.rpc('elenco_staff');
