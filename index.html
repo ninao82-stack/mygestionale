@@ -270,12 +270,13 @@
     </div>
 
     <div id="gevModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-height:90vh;overflow-y:auto;max-width:620px;">
             <h3>Evento Google Calendar</h3>
             <div id="gevInfo" style="font-size:13px;color:#64748b;margin-bottom:10px;"></div>
-            <div class="form-group"><label>Titolo</label><input type="text" id="gevTitle"></div>
+            <div class="form-group"><label>Titolo</label><textarea id="gevTitle" rows="2"></textarea></div>
+            <div id="gevLoc" style="font-size:13px;margin-bottom:10px;"></div>
             <div class="form-group"><label>Data</label><input type="date" id="gevDate"></div>
-            <div class="form-group"><label>Descrizione</label><textarea id="gevDesc" rows="3"></textarea></div>
+            <div class="form-group"><label>Descrizione</label><textarea id="gevDesc" rows="8"></textarea></div>
             <div id="gevMsg" style="font-size:13px;color:#b91c1c;min-height:18px;"></div>
             <div class="modal-actions" style="flex-direction:row;flex-wrap:wrap;">
                 <button class="btn btn-success" id="gevSave" onclick="saveGoogleEvent()">Salva</button>
@@ -696,10 +697,6 @@
             </div>
             <div id="calendarGrid" class="calendar-grid"></div>
             <div id="googleStatus" class="cal-status"></div>
-        </div>
-        <div class="card">
-            <h3>Prossimi appuntamenti</h3>
-            <div id="upcomingAppointments" class="contact-list" style="margin-top:12px;"></div>
         </div>
     </section>
 </div>
@@ -1675,6 +1672,7 @@ function exportExcel() {
 
 
 function showPage(page) {
+    if (page !== 'contatti') focusContactId = null;
     if (page === 'diplomi' && !isAdmin()) {
         alert("La sezione Diplomi è riservata all'amministratore.");
         page = 'home';
@@ -2093,6 +2091,21 @@ function contactMatchesPeriod(contact, monthSel, yearSel) {
 }
 
 // Restituisce i contatti secondo i filtri attivi a schermo (ricerca, regione, stato, mese, anno)
+let focusContactId = null;
+
+// Dal calendario: mostra la scheda del contatto (senza aprire la modifica)
+function showContactDetail(id) {
+    focusContactId = id;
+    showPage('contatti');
+    renderContacts();
+    const card = document.getElementById('contact-card-' + id);
+    if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.style.outline = '3px solid #2563eb';
+        setTimeout(() => { card.style.outline = ''; }, 2500);
+    }
+}
+
 function getFilteredContacts() {
     const search = (document.getElementById('contactSearch')?.value || '').toLowerCase().trim();
     const regionFilter = document.getElementById('contactRegionFilter')?.value || '';
@@ -2106,7 +2119,11 @@ function getFilteredContacts() {
         const text = [getContactFullName(contact), contact.phone, contact.region, contact.status, ...(contact.communications || []).map(c => c.text)].join(' ').toLowerCase();
         return (!search || text.includes(search)) && (!regionFilter || contact.region === regionFilter) && (!statusFilter || contact.status === statusFilter);
     });
-    const filtered = usePeriod ? baseMatches.filter(contact => contactMatchesPeriod(contact, monthSel, yearSel)) : baseMatches;
+    let filtered = usePeriod ? baseMatches.filter(contact => contactMatchesPeriod(contact, monthSel, yearSel)) : baseMatches;
+    if (focusContactId && !filtered.some(c => c.id === focusContactId)) {
+        const extra = contactsDb.find(c => c.id === focusContactId);
+        if (extra) filtered = [extra, ...filtered];
+    }
     return { filtered, baseMatches };
 }
 
@@ -2200,7 +2217,7 @@ const displayName = getContactFullName(contact);
             bgStyle = 'background-color: #dcfce7; border-color: #bbf7d0;';
         }
 
-        return `<article class="contact-item" style="${bgStyle}">
+        return `<article class="contact-item" id="contact-card-${contact.id}" style="${bgStyle}">
             <div class="contact-top">
                 <div><strong><i class="type-dot ${typeDotClass(contact.type)}"></i>${escapeHtml(displayName)}</strong>
                 <div class="contact-meta">${escapeHtml(contact.region)}${phoneHtml} · Inserito il ${escapeHtml(contact.date || '')}</div></div>
@@ -2249,12 +2266,11 @@ function renderCalendar() {
         output += `<div class="calendar-day ${inMonth ? '' : 'other-month'} ${dateKey === today ? 'today' : ''}">
             <div class="calendar-day-number">${date.getDate()}</div>
             
-            ${events.map(contact => `<button class="calendar-event gest ${regionEventClass(contact.region)}" title="Preso dal gestionale · ${escapeHtml(getContactFullName(contact))} · ${escapeHtml(contact.region)}" onclick="showPage('contatti');editContact('${contact.id}')">${escapeHtml(getContactFullName(contact))}</button>`).join('')}${googleEventsForDay(dateKey)}
+            ${events.map(contact => `<button class="calendar-event gest ${regionEventClass(contact.region)}" title="Preso dal gestionale · ${escapeHtml(getContactFullName(contact))} · ${escapeHtml(contact.region)}" onclick="showContactDetail('${contact.id}')">${escapeHtml(getContactFullName(contact))}</button>`).join('')}${googleEventsForDay(dateKey)}
 
         </div>`;
     }
     grid.innerHTML = output;
-    renderUpcomingList();
     ensureGoogleEvents();
 }
 
@@ -2352,6 +2368,7 @@ function openGoogleEvent(region, id) {
     document.getElementById('gevTitle').value = ev.title || '';
     document.getElementById('gevDate').value = String(ev.start).slice(0, 10);
     document.getElementById('gevDesc').value = ev.description || '';
+    document.getElementById('gevLoc').innerHTML = ev.location ? '📍 <strong>Luogo:</strong> ' + escapeHtml(ev.location) : '';
     document.getElementById('gevMsg').textContent = '';
     document.getElementById('gevModal').style.display = 'flex';
 }
