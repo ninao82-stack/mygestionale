@@ -257,13 +257,21 @@
 
     <!-- Modal Opzioni Importazione -->
     <div id="staffModal" class="modal">
-        <div class="modal-content">
-            <h3>Nomi dei collaboratori</h3>
-            <p style="font-size:13px;color:#64748b;margin-bottom:10px;">Questi nomi compaiono nell'elenco "Rivolto a" della Bacheca e come autore delle note.</p>
+        <div class="modal-content" style="max-height:90vh;overflow-y:auto;max-width:560px;">
+            <h3>Collaboratori</h3>
+            <p style="font-size:13px;color:#64748b;margin-bottom:10px;">Il nome e cognome che imposti qui compare nel menu "Rivolto a" della Bacheca e come autore delle note.</p>
             <div id="staffRows"></div>
+            <hr style="margin:14px 0;border:0;border-top:1px solid #e2e8f0;">
+            <h4 style="margin-bottom:8px;">➕ Nuovo collaboratore</h4>
+            <div class="form-grid">
+                <div class="form-group"><label>Nome</label><input type="text" id="newStaffNome"></div>
+                <div class="form-group"><label>Cognome</label><input type="text" id="newStaffCognome"></div>
+                <div class="form-group"><label>Email di accesso</label><input type="email" id="newStaffEmail"></div>
+                <div class="form-group"><label>Password (min. 8 caratteri)</label><input type="text" id="newStaffPassword" autocomplete="off"></div>
+            </div>
+            <button class="btn" onclick="createStaff()">Crea collaboratore</button>
             <div id="staffMsg" style="font-size:13px;color:#b91c1c;min-height:18px;margin-top:8px;"></div>
             <div class="modal-actions" style="flex-direction:row;">
-                <button class="btn btn-success" onclick="saveStaffNames()">Salva</button>
                 <button class="btn btn-outline" onclick="document.getElementById('staffModal').style.display='none'">Chiudi</button>
             </div>
         </div>
@@ -622,7 +630,7 @@
             <h1>Bacheca</h1>
             <div class="header-actions">
                 <label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" id="boardShowDone" style="width:auto;" onchange="renderBacheca()"> Mostra completati</label>
-                <button class="btn btn-outline admin-only" onclick="openStaffNames()">👥 Nomi collaboratori</button>
+                <button class="btn btn-outline admin-only" onclick="openStaffNames()">👥 Collaboratori</button>
                 <button class="btn btn-outline" onclick="loadBacheca()">🔄 Aggiorna</button>
             </div>
         </div>
@@ -2463,26 +2471,56 @@ let staffList = [];
 async function openStaffNames() {
     if (!requireAdmin()) return;
     const msg = document.getElementById('staffMsg');
+    msg.style.color = '#b91c1c';
     msg.textContent = 'Caricamento...';
     document.getElementById('staffModal').style.display = 'flex';
     const { data, error } = await supabaseClient.rpc('elenco_staff_admin');
-    if (error) { msg.textContent = 'Non disponibile: esegui prima lo script D_nomi.sql in Supabase (' + error.message + ')'; document.getElementById('staffRows').innerHTML = ''; return; }
+    if (error) { msg.textContent = 'Non disponibile: esegui prima gli script D_nomi.sql e F_collaboratori.sql in Supabase (' + error.message + ')'; document.getElementById('staffRows').innerHTML = ''; return; }
     msg.textContent = '';
     document.getElementById('staffRows').innerHTML = (data || []).map(u => `
         <div class="form-group"><label>${escapeHtml(u.email)} · ${u.ruolo === 'admin' ? 'Amministratore' : 'Collaboratore'}</label>
-        <input type="text" class="staffNameInput" data-uid="${escapeHtml(u.user_id)}" value="${escapeHtml(u.nome || '')}" placeholder="Nome (es. Luca)"></div>`).join('');
+        <div style="display:flex;gap:6px;">
+            <input type="text" class="staffNameInput" data-uid="${escapeHtml(u.user_id)}" value="${escapeHtml(u.nome || '')}" placeholder="Nome e cognome">
+            <button class="btn btn-sm btn-success" onclick="saveStaffName('${escapeHtml(u.user_id)}', this)">Salva</button>
+            ${u.ruolo === 'admin' ? '' : `<button class="btn btn-sm btn-danger" onclick="removeStaff('${escapeHtml(u.user_id)}')">Elimina</button>`}
+        </div></div>`).join('') || '<div class="empty-state">Nessun utente.</div>';
 }
 
-async function saveStaffNames() {
+async function saveStaffName(uid, btn) {
     const msg = document.getElementById('staffMsg');
-    msg.textContent = 'Salvataggio...';
-    for (const input of document.querySelectorAll('.staffNameInput')) {
-        const { error } = await supabaseClient.rpc('imposta_nome', { p_user: input.dataset.uid, p_nome: input.value });
-        if (error) { msg.textContent = 'Non riuscito: ' + error.message; return; }
-        if (currentUser && input.dataset.uid === currentUser.id && input.value.trim()) currentUserName = input.value.trim();
+    const input = document.querySelector(`.staffNameInput[data-uid="${uid}"]`);
+    const { error } = await supabaseClient.rpc('imposta_nome', { p_user: uid, p_nome: input.value });
+    msg.style.color = error ? '#b91c1c' : '#15803d';
+    msg.textContent = error ? 'Non riuscito: ' + error.message : 'Nome salvato.';
+    if (!error) {
+        if (currentUser && uid === currentUser.id && input.value.trim()) currentUserName = input.value.trim();
+        await loadStaff();
     }
-    document.getElementById('staffModal').style.display = 'none';
+}
+
+async function createStaff() {
+    const msg = document.getElementById('staffMsg');
+    const v = id => document.getElementById(id).value.trim();
+    msg.style.color = '#b91c1c';
+    if (!v('newStaffNome') || !v('newStaffCognome') || !v('newStaffEmail') || !v('newStaffPassword')) { msg.textContent = 'Compila nome, cognome, email e password.'; return; }
+    msg.textContent = 'Creazione in corso...';
+    const { error } = await supabaseClient.rpc('crea_collaboratore', {
+        p_email: v('newStaffEmail'), p_password: v('newStaffPassword'), p_nome: v('newStaffNome'), p_cognome: v('newStaffCognome')
+    });
+    if (error) { msg.textContent = 'Non riuscito: ' + error.message; return; }
+    ['newStaffNome', 'newStaffCognome', 'newStaffEmail', 'newStaffPassword'].forEach(id => { document.getElementById(id).value = ''; });
     await loadStaff();
+    await openStaffNames();
+    msg.style.color = '#15803d';
+    msg.textContent = 'Collaboratore creato. Comunicagli email e password.';
+}
+
+async function removeStaff(uid) {
+    if (!confirm('Eliminare questo collaboratore? Non potrà più accedere.')) return;
+    const { error } = await supabaseClient.rpc('elimina_collaboratore', { p_user: uid });
+    if (error) { document.getElementById('staffMsg').textContent = 'Non riuscito: ' + error.message; return; }
+    await loadStaff();
+    await openStaffNames();
 }
 
 async function loadStaff() {
