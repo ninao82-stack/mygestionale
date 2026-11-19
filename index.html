@@ -94,6 +94,15 @@
         .toggle-container { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--purple); background: #fff; padding: 4px 10px; border-radius: 6px; border: 1px solid #d8b4fe; }
 
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); align-items: center; justify-content: center; }
+        .ctr-cell { display:flex; flex-direction:column; gap:4px; min-width:130px; font-size:12px; }
+        .ctr-cell label { display:flex; align-items:center; gap:6px; font-weight:600; }
+        .ctr-cell input[type=checkbox] { width:20px; height:20px; cursor:pointer; accent-color:#16a34a; }
+        .ctr-ok { color:#166534; } .ctr-no { color:#92400e; }
+        .acc-box { display:none; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-top:10px; background:#f8fafc; }
+        .acc-types { display:flex; gap:8px; flex-wrap:wrap; }
+        .acc-types label { flex:1; min-width:120px; text-align:center; border:2px solid #e2e8f0; border-radius:8px; padding:10px 6px; cursor:pointer; font-weight:600; background:#fff; }
+        .acc-types label.on { border-color:#2563eb; background:#eff6ff; color:#1d4ed8; }
+        .acc-types input { display:none; }
         .modal-content { background: white; padding: 25px; border-radius: 8px; max-width: 500px; width: 90%; }
         .modal-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
 
@@ -503,6 +512,7 @@
                     <th onclick="sortTable('anno')">ANNO ↕</th>
                     <th onclick="sortTable('pagamento')">PAGAMENTO ↕</th>
                     <th onclick="sortTable('note')">NOTE ↕</th>
+                    <th onclick="sortTable('contratto')">CONTRATTO ↕</th>
                     <th>AZIONI</th>
                 </tr>
             </thead>
@@ -670,6 +680,59 @@
         </div>
     </section>
 </div>
+
+    <div id="ctrConfirmModal" class="modal" style="z-index:1100;">
+        <div class="modal-content" style="max-width:440px;">
+            <h3 id="ctrConfirmTitle"></h3>
+            <p id="ctrConfirmText" style="margin-top:10px;font-size:15px;line-height:1.5;"></p>
+            <div class="modal-actions" style="flex-direction:row;flex-wrap:wrap;">
+                <button class="btn btn-success" id="ctrConfirmOk">Conferma</button>
+                <button class="btn btn-outline" onclick="closeCtrConfirm()">Annulla</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="accModal" class="modal" style="z-index:1050;">
+        <div class="modal-content" style="max-height:92vh;overflow-y:auto;max-width:540px;">
+            <h3>💳 Accordo di pagamento</h3>
+            <p id="accWho" style="font-size:14px;color:#475569;margin:6px 0 12px;"></p>
+            <div class="acc-types" id="accTypes">
+                <label data-t="finanziamento"><input type="radio" name="accTipo" value="finanziamento">🏦 Finanziamento</label>
+                <label data-t="rate"><input type="radio" name="accTipo" value="rate">🗓️ Rate interne</label>
+                <label data-t="unica"><input type="radio" name="accTipo" value="unica">💶 Soluzione unica</label>
+            </div>
+            <div class="acc-box" id="acc-finanziamento">
+                <div class="form-grid">
+                    <div class="form-group"><label>Società di finanziamento</label>
+                        <select id="accSocieta"><option value="">Seleziona...</option><option>Compass</option><option>Santander</option><option>Sequra</option><option>Sella</option></select></div>
+                    <div class="form-group"><label>Importo finanziato (€)</label><input type="number" id="accFinImporto" min="0" step="0.01"></div>
+                    <div class="form-group"><label>Anticipo (€) – se previsto</label><input type="number" id="accFinAnticipo" min="0" step="0.01"></div>
+                    <div class="form-group"><label>Numero di rate</label><input type="number" id="accFinRate" min="1" step="1"></div>
+                </div>
+            </div>
+            <div class="acc-box" id="acc-rate">
+                <div class="form-grid">
+                    <div class="form-group"><label>Importo totale (€)</label><input type="number" id="accRateTotale" min="0" step="0.01" oninput="accAutoRata()"></div>
+                    <div class="form-group"><label>Numero di rate</label><input type="number" id="accRateN" min="1" step="1" oninput="accAutoRata()"></div>
+                    <div class="form-group"><label>Importo per ogni rata (€)</label><input type="number" id="accRateImporto" min="0" step="0.01"></div>
+                    <div class="form-group"><label>Scadenza</label>
+                        <select id="accRateScad"><option>Mensile</option><option>Bimestrale</option><option>Trimestrale</option><option>Semestrale</option></select></div>
+                </div>
+            </div>
+            <div class="acc-box" id="acc-unica">
+                <div class="form-grid">
+                    <div class="form-group"><label>Importo (€)</label><input type="number" id="accUnicaImporto" min="0" step="0.01"></div>
+                    <div class="form-group"><label>Data in cui dovrebbe versarlo</label><input type="date" id="accUnicaData"></div>
+                </div>
+            </div>
+            <div id="accMsg" style="font-size:13px;color:#b91c1c;min-height:18px;margin-top:10px;"></div>
+            <div id="accNoteInfo" style="font-size:12px;color:#64748b;"></div>
+            <div class="modal-actions" style="flex-direction:row;flex-wrap:wrap;">
+                <button class="btn btn-success" id="accSaveBtn" onclick="saveAccordo()">Salva accordo e crea nota in Bacheca</button>
+                <button class="btn btn-outline" onclick="closeAccordo()">Chiudi</button>
+            </div>
+        </div>
+    </div>
 
     <div id="staffModal" class="modal">
         <div class="modal-content" style="max-height:90vh;overflow-y:auto;max-width:560px;">
@@ -908,6 +971,165 @@ function syncDiplomiCloud() {
         alert('Salvataggio diplomi su cloud fallito: ' + (err && err.message ? err.message : err));
     });
     return diplomiSyncChain;
+}
+
+// ===================== CONTRATTO + ACCORDO DI PAGAMENTO =====================
+const euroFmt = n => '€ ' + Number(n || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const dateIt = k => { const m = String(k || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : (k || ''); };
+let ctrIdx = null, ctrOkAction = null;
+
+function accordoSummary(a) {
+    if (!a || !a.tipo) return '';
+    if (a.tipo === 'finanziamento') return `Finanziamento ${a.societa || ''} · ${euroFmt(a.importo)}${a.anticipo ? ' (anticipo ' + euroFmt(a.anticipo) + ')' : ''} · ${a.rate} rate`;
+    if (a.tipo === 'rate') return `Rate interne · ${euroFmt(a.totale)} in ${a.rate} rate da ${euroFmt(a.importoRata)} (${String(a.scadenza || '').toLowerCase()})`;
+    return `Soluzione unica · ${euroFmt(a.importo)} entro il ${dateIt(a.data)}`;
+}
+function accordoNoteText(item, a) {
+    const head = `CONTRATTO FIRMATO · ${item.diploma || 'Diploma non indicato'}${item.regione ? ' (' + item.regione + ')' : ''}${item.data ? ' · iscritto il ' + item.data : ''}`;
+    let det;
+    if (a.tipo === 'finanziamento') det = `FINANZIAMENTO con ${a.societa}\nImporto finanziato: ${euroFmt(a.importo)}\nAnticipo: ${a.anticipo ? euroFmt(a.anticipo) : 'nessuno'}\nNumero rate: ${a.rate}`;
+    else if (a.tipo === 'rate') det = `RATE INTERNE\nImporto totale: ${euroFmt(a.totale)}\nImporto per rata: ${euroFmt(a.importoRata)}\nNumero rate: ${a.rate}\nScadenza: ${a.scadenza}`;
+    else det = `SOLUZIONE UNICA\nImporto: ${euroFmt(a.importo)}\nDa versare entro il: ${dateIt(a.data)}`;
+    return head + '\n' + det;
+}
+function contractCell(item, idx) {
+    const on = !!item.contratto;
+    let html = `<div class="ctr-cell"><label title="Contratto firmato"><input type="checkbox" ${on ? 'checked' : ''} onclick="event.preventDefault(); askContract(${idx})"> <span class="${on ? 'ctr-ok' : 'ctr-no'}">${on ? 'Firmato' : 'Da firmare'}</span></label>`;
+    if (on) {
+        if (item.contratto_il) html += `<span style="color:#64748b;">${escapeHtml(formatItalianDateTime(item.contratto_il))}</span>`;
+        const n = (typeof bachecaItems !== 'undefined') ? bachecaItems.find(b => item.bacheca_id && b.id === item.bacheca_id) : null;
+        if (item.accordo && item.accordo.tipo) {
+            html += `<span>${escapeHtml(accordoSummary(item.accordo))}</span>`;
+            if (n) html += `<span style="color:${n.completato ? '#166534' : '#92400e'};">${n.completato ? '✔ Pagamenti: fatto' : '⏳ In Bacheca › Pagamenti'}</span>`;
+            html += `<button class="btn btn-outline btn-sm" onclick="openAccordo(${idx})">✏️ Modifica accordo</button>`;
+        } else {
+            html += `<button class="btn btn-warning btn-sm" onclick="openAccordo(${idx})">⚠ Inserisci accordo</button>`;
+        }
+    }
+    return html + '</div>';
+}
+function askContract(idx) {
+    const it = db[idx]; if (!it) return;
+    const who = escapeHtml(`${it.cognome || ''} ${it.nome || ''}`.trim());
+    ctrIdx = idx;
+    if (!it.contratto) {
+        showCtrConfirm('Firma del contratto', `Confermi che <b>${who}</b> ha <b>firmato il contratto</b>?<br><span style="font-size:13px;color:#64748b;">Subito dopo ti verrà chiesto l'accordo di pagamento.</span>`, 'Sì, ha firmato', async () => {
+            if (await setContract(idx, true)) openAccordo(idx);
+        });
+    } else {
+        showCtrConfirm('Togliere la firma?', `Vuoi segnare che <b>${who}</b> <b>NON</b> ha firmato il contratto?<br><span style="font-size:13px;color:#64748b;">La nota già creata in Bacheca non viene toccata.</span>`, 'Sì, togli la firma', () => setContract(idx, false));
+    }
+}
+function showCtrConfirm(title, html, okLabel, action) {
+    document.getElementById('ctrConfirmTitle').textContent = title;
+    document.getElementById('ctrConfirmText').innerHTML = html;
+    const ok = document.getElementById('ctrConfirmOk');
+    ok.textContent = okLabel;
+    ctrOkAction = action;
+    ok.onclick = async () => { const a = ctrOkAction; closeCtrConfirm(); if (a) await a(); };
+    document.getElementById('ctrConfirmModal').style.display = 'flex';
+}
+function closeCtrConfirm() { document.getElementById('ctrConfirmModal').style.display = 'none'; ctrOkAction = null; }
+
+function needDiplomaId(it) {
+    if (!hasDiplomaId(it)) { alert('Questo diploma non è ancora salvato sul cloud: attendi qualche secondo e riprova (o ricarica la pagina).'); return false; }
+    return true;
+}
+async function setContract(idx, value) {
+    const it = db[idx]; if (!it || !needDiplomaId(it)) return false;
+    const patch = { contratto: value, contratto_il: value ? new Date().toISOString() : null, contratto_da: value ? (currentUserName || null) : null };
+    const { error } = await supabaseClient.from('diplomi').update(patch).eq('id', it.id);
+    if (error) { alert('Impossibile salvare la firma: ' + error.message + '\n\nSe è la prima volta, esegui prima lo script SQL G_contratto.sql su Supabase.'); return false; }
+    Object.assign(it, patch);
+    try { localStorage.setItem('gestionale_db', JSON.stringify(db)); } catch (e) {}
+    renderTable();
+    return true;
+}
+
+function accSetTipo(t) {
+    document.querySelectorAll('#accTypes label').forEach(l => l.classList.toggle('on', l.dataset.t === t));
+    document.querySelectorAll('#accTypes input').forEach(i => { i.checked = i.value === t; });
+    ['finanziamento', 'rate', 'unica'].forEach(k => { document.getElementById('acc-' + k).style.display = (k === t) ? 'block' : 'none'; });
+    document.getElementById('accMsg').textContent = '';
+}
+document.addEventListener('click', e => { const l = e.target.closest && e.target.closest('#accTypes label'); if (l) { e.preventDefault(); accSetTipo(l.dataset.t); } });
+function accAutoRata() {
+    const t = parseFloat(document.getElementById('accRateTotale').value), n = parseInt(document.getElementById('accRateN').value, 10), r = document.getElementById('accRateImporto');
+    if (t > 0 && n > 0 && (!r.value || r.dataset.auto === '1')) { r.value = (Math.round(t / n * 100) / 100).toFixed(2); r.dataset.auto = '1'; }
+}
+function openAccordo(idx) {
+    const it = db[idx]; if (!it) return;
+    ctrIdx = idx;
+    const a = it.accordo || {};
+    document.getElementById('accWho').innerHTML = `<b>${escapeHtml(`${it.cognome || ''} ${it.nome || ''}`.trim())}</b> · ${escapeHtml(it.diploma || '')}`;
+    const set = (id, v) => { const el = document.getElementById(id); el.value = (v === undefined || v === null) ? '' : v; };
+    set('accSocieta', a.tipo === 'finanziamento' ? a.societa : ''); set('accFinImporto', a.tipo === 'finanziamento' ? a.importo : ''); set('accFinAnticipo', a.tipo === 'finanziamento' ? a.anticipo : ''); set('accFinRate', a.tipo === 'finanziamento' ? a.rate : '');
+    set('accRateTotale', a.tipo === 'rate' ? a.totale : ''); set('accRateN', a.tipo === 'rate' ? a.rate : ''); set('accRateImporto', a.tipo === 'rate' ? a.importoRata : ''); document.getElementById('accRateImporto').dataset.auto = '';
+    set('accRateScad', a.tipo === 'rate' ? a.scadenza : 'Mensile');
+    set('accUnicaImporto', a.tipo === 'unica' ? a.importo : ''); set('accUnicaData', a.tipo === 'unica' ? a.data : '');
+    accSetTipo(a.tipo || '');
+    const n = item_note(it);
+    document.getElementById('accNoteInfo').textContent = it.accordo && it.accordo.tipo ? (n ? 'La nota in Bacheca › Pagamenti verrà aggiornata con le modifiche.' : 'La nota in Bacheca non è più presente: ne verrà creata una nuova.') : 'Verrà creata una nota URGENTE in Bacheca › Pagamenti con questi dati.';
+    document.getElementById('accSaveBtn').textContent = it.accordo && it.accordo.tipo ? 'Salva modifiche' : 'Salva accordo e crea nota in Bacheca';
+    document.getElementById('accModal').style.display = 'flex';
+}
+function item_note(it) { return (typeof bachecaItems !== 'undefined' && it.bacheca_id) ? bachecaItems.find(b => b.id === it.bacheca_id) : null; }
+function closeAccordo() { document.getElementById('accModal').style.display = 'none'; }
+
+function findContactPhone(it) {
+    const norm = x => String(x || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const a = norm(`${it.nome} ${it.cognome}`), b = norm(`${it.cognome} ${it.nome}`);
+    const c = (contactsDb || []).find(c => { const f = norm(getContactFullName(c)); return f === a || f === b; });
+    return c && c.phone ? c.phone : null;
+}
+async function saveAccordo() {
+    const it = db[ctrIdx]; if (!it || !needDiplomaId(it)) return;
+    const msg = document.getElementById('accMsg'); msg.textContent = '';
+    const tipo = (document.querySelector('#accTypes input:checked') || {}).value;
+    const num = id => parseFloat(document.getElementById(id).value);
+    const int = id => parseInt(document.getElementById(id).value, 10);
+    let a;
+    if (!tipo) { msg.textContent = 'Scegli il tipo di accordo.'; return; }
+    if (tipo === 'finanziamento') {
+        a = { tipo, societa: document.getElementById('accSocieta').value, importo: num('accFinImporto'), anticipo: num('accFinAnticipo') || 0, rate: int('accFinRate') };
+        if (!a.societa) { msg.textContent = 'Scegli la società di finanziamento.'; return; }
+        if (!(a.importo > 0)) { msg.textContent = 'Inserisci l\'importo finanziato.'; return; }
+        if (!(a.rate > 0)) { msg.textContent = 'Inserisci il numero di rate.'; return; }
+    } else if (tipo === 'rate') {
+        a = { tipo, totale: num('accRateTotale'), importoRata: num('accRateImporto'), rate: int('accRateN'), scadenza: document.getElementById('accRateScad').value };
+        if (!(a.totale > 0)) { msg.textContent = 'Inserisci l\'importo totale.'; return; }
+        if (!(a.importoRata > 0)) { msg.textContent = 'Inserisci l\'importo di ogni rata.'; return; }
+        if (!(a.rate > 0)) { msg.textContent = 'Inserisci il numero di rate.'; return; }
+        if (Math.abs(a.importoRata * a.rate - a.totale) > 1 && !confirm(`Attenzione: ${a.rate} rate da ${euroFmt(a.importoRata)} fanno ${euroFmt(a.importoRata * a.rate)}, non ${euroFmt(a.totale)}. Salvo comunque?`)) return;
+    } else {
+        a = { tipo, importo: num('accUnicaImporto'), data: document.getElementById('accUnicaData').value };
+        if (!(a.importo > 0)) { msg.textContent = 'Inserisci l\'importo.'; return; }
+        if (!a.data) { msg.textContent = 'Inserisci la data del versamento.'; return; }
+    }
+    const btn = document.getElementById('accSaveBtn'); btn.disabled = true;
+    try {
+        const testo = accordoNoteText(it, a);
+        let boardId = it.bacheca_id || null, done = false;
+        if (boardId) {
+            const { data, error } = await supabaseClient.from('bacheca').update({ testo }).eq('id', boardId).select('id');
+            if (error) throw error;
+            done = !!(data && data.length);
+        }
+        if (!done) {
+            const { data, error } = await supabaseClient.from('bacheca').insert({ sezione: 'pagamenti', cognome: it.cognome || '', nome: it.nome || '', telefono: findContactPhone(it), priorita: 'Urgente', testo, creato_da_nome: currentUserName }).select('id').single();
+            if (error) throw error;
+            boardId = data.id;
+        }
+        const { error: e2 } = await supabaseClient.from('diplomi').update({ accordo: a, bacheca_id: boardId }).eq('id', it.id);
+        if (e2) throw e2;
+        it.accordo = a; it.bacheca_id = boardId;
+        try { localStorage.setItem('gestionale_db', JSON.stringify(db)); } catch (e) {}
+        closeAccordo();
+        await loadBacheca();
+        renderTable();
+    } catch (err) {
+        msg.textContent = 'Salvataggio non riuscito: ' + (err.message || err) + ' (se è la prima volta, esegui lo script SQL G_contratto.sql).';
+    } finally { btn.disabled = false; }
 }
 
 function saveData() {
@@ -1318,8 +1540,8 @@ function renderTable() {
    		valA = getSortableDate(a.data);
     		valB = getSortableDate(b.data);
 	    } else {
-                valA = String(a[currentSortColumn] || '').toLowerCase();
-                valB = String(b[currentSortColumn] || '').toLowerCase();
+                valA = currentSortColumn === 'contratto' ? (a.contratto ? '1' : '0') : String(a[currentSortColumn] || '').toLowerCase();
+                valB = currentSortColumn === 'contratto' ? (b.contratto ? '1' : '0') : String(b[currentSortColumn] || '').toLowerCase();
             }
 
             let comparison = valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' });
@@ -1342,6 +1564,7 @@ function renderTable() {
             <td><strong>${extractYear(item.data)}</strong></td>
             <td>${item.pagamento ? `<span class="badge ${item.pagamento === 'PAGATO' ? 'badge-pagato' : 'badge-davide'}">${item.pagamento}</span>` : ''}</td>
             <td>${item.note ? `<span class="badge ${item.note === 'Azione Legale' ? 'badge-legale' : item.note === 'Integrazione' ? 'badge-integrazione' : ''}">${item.note}</span>` : ''}</td>
+            <td>${contractCell(item, realIndex)}</td>
             <td>
                 <button class="btn btn-warning btn-sm" onclick="openEditForm(${realIndex})">✏️ Modifica</button>
                 <button class="btn btn-danger btn-sm admin-only" onclick="deleteClient(${realIndex})">🗑️ Elimina</button>
@@ -2569,6 +2792,7 @@ async function loadBacheca() {
     setBoardStatus('');
     bachecaItems = data || [];
     renderBacheca();
+    if (db.length && document.getElementById('page-diplomi').classList.contains('active')) renderTable();
 }
 
 function boardSort(a, b) {
