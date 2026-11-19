@@ -94,7 +94,13 @@
         .toggle-container { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--purple); background: #fff; padding: 4px 10px; border-radius: 6px; border: 1px solid #d8b4fe; }
 
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); align-items: center; justify-content: center; }
-        .ctr-cell { display:flex; flex-direction:column; gap:4px; min-width:130px; font-size:12px; }
+        #page-diplomi .table-container table { table-layout:auto; width:100%; }
+        #page-diplomi th { padding:10px 8px; font-size:12px; }
+        #page-diplomi td { padding:8px; white-space:normal; word-break:break-word; font-size:13px; }
+        #page-diplomi td:nth-child(5), #page-diplomi td:nth-child(6), #page-diplomi td:nth-child(7) { white-space:nowrap; }
+        #page-diplomi td:last-child { white-space:normal; }
+        #page-diplomi td:last-child .btn { display:block; width:100%; margin:0 0 4px 0; white-space:nowrap; }
+        .ctr-cell { display:flex; flex-direction:column; gap:3px; min-width:0; font-size:12px; }
         .ctr-cell label { display:flex; align-items:center; gap:6px; font-weight:600; }
         .ctr-cell input[type=checkbox] { width:20px; height:20px; cursor:pointer; accent-color:#16a34a; }
         .ctr-ok { color:#166534; } .ctr-no { color:#92400e; }
@@ -695,7 +701,8 @@
     <div id="accModal" class="modal" style="z-index:1050;">
         <div class="modal-content" style="max-height:92vh;overflow-y:auto;max-width:540px;">
             <h3>💳 Accordo di pagamento</h3>
-            <p id="accWho" style="font-size:14px;color:#475569;margin:6px 0 12px;"></p>
+            <p id="accWho" style="font-size:14px;color:#475569;margin:6px 0 4px;"></p>
+            <p style="font-size:12px;color:#64748b;margin-bottom:12px;">La firma è già registrata. Se l'accordo non c'è ancora puoi saltare: lo inserirai dopo da Bacheca › Pagamenti.</p>
             <div class="acc-types" id="accTypes">
                 <label data-t="finanziamento"><input type="radio" name="accTipo" value="finanziamento">🏦 Finanziamento</label>
                 <label data-t="rate"><input type="radio" name="accTipo" value="rate">🗓️ Rate interne</label>
@@ -716,7 +723,7 @@
                     <div class="form-group"><label>Numero di rate</label><input type="number" id="accRateN" min="1" step="1" oninput="accAutoRata()"></div>
                     <div class="form-group"><label>Importo per ogni rata (€)</label><input type="number" id="accRateImporto" min="0" step="0.01"></div>
                     <div class="form-group"><label>Scadenza</label>
-                        <select id="accRateScad"><option>Mensile</option><option>Bimestrale</option><option>Trimestrale</option><option>Semestrale</option></select></div>
+                        <select id="accRateScad"><option>Mensile</option><option>Bimestrale</option><option>Trimestrale</option><option>Quadrimestrale</option><option>Semestrale</option></select></div>
                 </div>
             </div>
             <div class="acc-box" id="acc-unica">
@@ -729,7 +736,7 @@
             <div id="accNoteInfo" style="font-size:12px;color:#64748b;"></div>
             <div class="modal-actions" style="flex-direction:row;flex-wrap:wrap;">
                 <button class="btn btn-success" id="accSaveBtn" onclick="saveAccordo()">Salva accordo e crea nota in Bacheca</button>
-                <button class="btn btn-outline" onclick="closeAccordo()">Chiudi</button>
+                <button class="btn btn-outline" onclick="closeAccordo()" id="accSkipBtn">Nessun accordo per ora</button>
             </div>
         </div>
     </div>
@@ -994,26 +1001,15 @@ function accordoNoteText(item, a) {
 }
 function contractCell(item, idx) {
     const on = !!item.contratto;
-    let html = `<div class="ctr-cell"><label title="Contratto firmato"><input type="checkbox" ${on ? 'checked' : ''} onclick="event.preventDefault(); askContract(${idx})"> <span class="${on ? 'ctr-ok' : 'ctr-no'}">${on ? 'Firmato' : 'Da firmare'}</span></label>`;
-    if (on) {
-        if (item.contratto_il) html += `<span style="color:#64748b;">${escapeHtml(formatItalianDateTime(item.contratto_il))}</span>`;
-        const n = (typeof bachecaItems !== 'undefined') ? bachecaItems.find(b => item.bacheca_id && b.id === item.bacheca_id) : null;
-        if (item.accordo && item.accordo.tipo) {
-            html += `<span>${escapeHtml(accordoSummary(item.accordo))}</span>`;
-            if (n) html += `<span style="color:${n.completato ? '#166534' : '#92400e'};">${n.completato ? '✔ Pagamenti: fatto' : '⏳ In Bacheca › Pagamenti'}</span>`;
-            html += `<button class="btn btn-outline btn-sm" onclick="openAccordo(${idx})">✏️ Modifica accordo</button>`;
-        } else {
-            html += `<button class="btn btn-warning btn-sm" onclick="openAccordo(${idx})">⚠ Inserisci accordo</button>`;
-        }
-    }
-    return html + '</div>';
+    return `<div class="ctr-cell"><label title="Contratto firmato"><input type="checkbox" ${on ? 'checked' : ''} onclick="event.preventDefault(); askContract(${idx})"> <span class="${on ? 'ctr-ok' : 'ctr-no'}">${on ? 'Firmato' : 'Da firmare'}</span></label>`
+        + (on && item.contratto_il ? `<span style="color:#64748b;">${escapeHtml(formatItalianDateTime(item.contratto_il))}</span>` : '') + '</div>';
 }
 function askContract(idx) {
     const it = db[idx]; if (!it) return;
     const who = escapeHtml(`${it.cognome || ''} ${it.nome || ''}`.trim());
     ctrIdx = idx;
     if (!it.contratto) {
-        showCtrConfirm('Firma del contratto', `Confermi che <b>${who}</b> ha <b>firmato il contratto</b>?<br><span style="font-size:13px;color:#64748b;">Subito dopo ti verrà chiesto l'accordo di pagamento.</span>`, 'Sì, ha firmato', async () => {
+        showCtrConfirm('Firma del contratto', `Confermi che <b>${who}</b> ha <b>firmato il contratto</b>?<br><span style="font-size:13px;color:#64748b;">Subito dopo potrai inserire l'accordo di pagamento (o saltarlo se non c'è ancora).</span>`, 'Sì, ha firmato', async () => {
             if (await setContract(idx, true)) openAccordo(idx);
         });
     } else {
@@ -1071,6 +1067,7 @@ function openAccordo(idx) {
     const n = item_note(it);
     document.getElementById('accNoteInfo').textContent = it.accordo && it.accordo.tipo ? (n ? 'La nota in Bacheca › Pagamenti verrà aggiornata con le modifiche.' : 'La nota in Bacheca non è più presente: ne verrà creata una nuova.') : 'Verrà creata una nota URGENTE in Bacheca › Pagamenti con questi dati.';
     document.getElementById('accSaveBtn').textContent = it.accordo && it.accordo.tipo ? 'Salva modifiche' : 'Salva accordo e crea nota in Bacheca';
+    document.getElementById('accSkipBtn').textContent = it.accordo && it.accordo.tipo ? 'Chiudi' : 'Nessun accordo per ora';
     document.getElementById('accModal').style.display = 'flex';
 }
 function item_note(it) { return (typeof bachecaItems !== 'undefined' && it.bacheca_id) ? bachecaItems.find(b => b.id === it.bacheca_id) : null; }
@@ -1574,6 +1571,7 @@ function renderTable() {
     });
 
     document.getElementById('counter').textContent = `Risultati: ${filtered.length} di ${db.length}`;
+    if (typeof renderBacheca === 'function' && document.getElementById('list-pagamenti')) renderBacheca();
 }
 
 function setSelectOrCustom(selectId, customId, value) {
@@ -2792,7 +2790,6 @@ async function loadBacheca() {
     setBoardStatus('');
     bachecaItems = data || [];
     renderBacheca();
-    if (db.length && document.getElementById('page-diplomi').classList.contains('active')) renderTable();
 }
 
 function boardSort(a, b) {
@@ -2838,11 +2835,18 @@ function renderBacheca() {
                     ${item.completato
                         ? `<button class="btn btn-sm btn-outline" onclick="completeBacheca('${item.id}', false)">↩ Riapri</button>`
                         : `<button class="btn btn-sm btn-success" onclick="completeBacheca('${item.id}', true)">✔ Fatto</button>`}
+                    ${sec === 'pagamenti' && db.findIndex(d => d.bacheca_id === item.id) >= 0 ? `<button class="btn btn-sm btn-warning" onclick="openAccordo(${db.findIndex(d => d.bacheca_id === item.id)})">✏️ Modifica accordo</button>` : ''}
                     ${canDelete ? `<button class="btn btn-sm btn-danger" onclick="deleteBacheca('${item.id}')">Elimina</button>` : ''}
                 </div>
             </div>`;
         });
-        list.innerHTML = cards.length ? cards.join('') : '<div class="empty-state">Niente qui.</div>';
+        let pendHtml = '';
+        if (sec === 'pagamenti') {
+            const pend = db.map((d, i) => [d, i]).filter(([d]) => d.contratto && !(d.accordo && d.accordo.tipo));
+            if (pend.length) pendHtml = `<div class="board-item" style="background:#fffbeb;border-color:#fde68a;"><div class="board-text"><strong>Contratti firmati senza accordo (${pend.length})</strong></div>`
+                + pend.map(([d, i]) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;font-size:13px;"><span>${escapeHtml(`${d.cognome || ''} ${d.nome || ''}`.trim())} · ${escapeHtml(d.diploma || '')}</span><button class="btn btn-sm btn-warning" onclick="openAccordo(${i})">Inserisci accordo</button></div>`).join('') + '</div>';
+        }
+        list.innerHTML = (pendHtml + cards.join('')) || '<div class="empty-state">Niente qui.</div>';
     });
 
     // Contatore sul menu: cose aperte rivolte a me
