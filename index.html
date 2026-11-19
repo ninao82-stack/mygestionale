@@ -288,7 +288,7 @@
     <div id="statsSection" class="stats-container">
         <div class="card stats-filter-card">
             <h4 style="color: var(--purple); margin-bottom: 5px;">🔍 Filtri di Analisi Avanzata</h4>
-            <p style="font-size: 12px; color: var(--text-muted);">Filtra il campione analizzato per isolare anni specifici, diplomi o regioni in ciascuna vista.</p>
+            <p style="font-size: 12px; color: var(--text-muted);">Filtra il campione analizzato per isolare anni specifici, diplomi o regioni in ciascuna vista. <b>Vengono contati solo i diplomi con contratto firmato.</b></p>
             <div class="filter-grid" style="margin-top: 10px;">
                 <div class="form-group">
                     <label for="statsFilterAnno">Anno</label>
@@ -1039,6 +1039,7 @@ async function setContract(idx, value) {
     Object.assign(it, patch);
     try { localStorage.setItem('gestionale_db', JSON.stringify(db)); } catch (e) {}
     renderTable();
+    updateStatistics();
     return true;
 }
 
@@ -1174,6 +1175,7 @@ function getFilteredStatsData(overrideAnno = null) {
     const pagamentoVal = document.getElementById('statsFilterPagamento').value;
 
     return db.filter(item => {
+        if (item.contratto !== true) return false;   // nelle statistiche contano solo i contratti firmati
         const itemYear = extractYear(item.data);
         const matchesAnno = (annoVal === '') ? true : itemYear === String(annoVal);
         
