@@ -2844,7 +2844,7 @@ function renderBacheca() {
         });
         let pendHtml = '';
         if (sec === 'pagamenti') {
-            const pend = db.map((d, i) => [d, i]).filter(([d]) => d.contratto && !(d.accordo && d.accordo.tipo));
+            const pend = db.map((d, i) => [d, i]).filter(([d]) => d.contratto && d.contratto_il && !(d.accordo && d.accordo.tipo));   // i contratti spuntati in blocco (senza data) non vengono elencati
             if (pend.length) pendHtml = `<div class="board-item" style="background:#fffbeb;border-color:#fde68a;"><div class="board-text"><strong>Contratti firmati senza accordo (${pend.length})</strong></div>`
                 + pend.map(([d, i]) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;font-size:13px;"><span>${escapeHtml(`${d.cognome || ''} ${d.nome || ''}`.trim())} · ${escapeHtml(d.diploma || '')}</span><button class="btn btn-sm btn-warning" onclick="openAccordo(${i})">Inserisci accordo</button></div>`).join('') + '</div>';
         }
